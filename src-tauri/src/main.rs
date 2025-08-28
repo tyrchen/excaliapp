@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    excaliapp_lib::run()
+    ownexcalidesk_lib::run()
 }

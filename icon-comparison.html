@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OwnExcaliDesk 图标方案对比</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: white;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            font-size: 1.1rem;
+            margin-bottom: 60px;
+        }
+        
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .option-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .option-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        
+        .icon-preview {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .icon-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .option-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 12px;
+        }
+        
+        .option-description {
+            color: #4a5568;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+        
+        .option-features {
+            list-style: none;
+            text-align: left;
+            color: #718096;
+            font-size: 0.85rem;
+        }
+        
+        .option-features li {
+            margin-bottom: 6px;
+            padding-left: 16px;
+            position: relative;
+        }
+        
+        .option-features li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #48bb78;
+            font-weight: bold;
+        }
+        
+        .current-design {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 40px;
+        }
+        
+        .current-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 20px;
+        }
+        
+        .size-comparison {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .size-label {
+            text-align: center;
+            color: #4a5568;
+            font-size: 0.8rem;
+            margin-top: 8px;
+        }
+        
+        .selection-note {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            color: white;
+            font-size: 1rem;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OwnExcaliDesk 图标方案选择</h1>
+        <p class="subtitle">简洁现代的设计方案，请选择你最喜欢的风格</p>
+        
+        <!-- 当前设计 -->
+        <div class="current-design">
+            <h2 class="current-title">当前设计（专业界面版）</h2>
+            <div class="icon-preview" style="width: 128px; height: 128px;">
+                <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                        </linearGradient>
+                        <linearGradient id="canvasGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#f8fafc;stop-opacity:1" />
+                        </linearGradient>
+                        <linearGradient id="toolbarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#f1f5f9;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
+                        </linearGradient>
+                        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.15"/>
+                        </filter>
+                    </defs>
+                    <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bgGrad)" filter="url(#shadow)"/>
+                    <rect x="12" y="16" width="104" height="88" rx="12" fill="url(#canvasGrad)"/>
+                    <rect x="12" y="16" width="104" height="20" rx="12" fill="url(#toolbarGrad)"/>
+                    <rect x="12" y="24" width="104" height="8" fill="url(#toolbarGrad)"/>
+                    <g opacity="0.7">
+                        <rect x="20" y="20" width="8" height="8" rx="2" fill="#64748b"/>
+                        <rect x="32" y="20" width="8" height="8" rx="2" fill="#3b82f6"/>
+                        <rect x="44" y="20" width="8" height="8" rx="2" fill="#8b5cf6"/>
+                        <rect x="56" y="20" width="8" height="8" rx="2" fill="#059669"/>
+                    </g>
+                    <g transform="translate(64, 64)" opacity="0.8">
+                        <rect x="-24" y="-12" width="20" height="12" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                        <circle cx="8" cy="-6" r="8" fill="none" stroke="#8b5cf6" stroke-width="2"/>
+                        <rect x="-20" y="6" width="16" height="8" rx="1" fill="#f1f5f9" stroke="#e2e8f0"/>
+                    </g>
+                    <circle cx="100" cy="24" r="6" fill="#fbbf24"/>
+                    <text x="100" y="26" text-anchor="middle" font-family="system-ui" font-size="6" font-weight="bold" fill="white">O</text>
+                </svg>
+            </div>
+            <p class="option-description">模拟专业绘图软件界面，包含工具栏和绘图元素</p>
+        </div>
+        
+        <!-- 简洁方案 -->
+        <div class="options-grid">
+            <!-- 方案 A -->
+            <div class="option-card">
+                <div class="icon-preview">
+                    <svg width="120" height="120" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="bgA" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bgA)"/>
+                        <g transform="translate(64, 64)" stroke="white" stroke-width="3" fill="none" opacity="0.9">
+                            <rect x="-16" y="-8" width="12" height="8" rx="1"/>
+                            <circle cx="8" cy="0" r="6"/>
+                            <line x1="-4" y1="-4" x2="2" y2="-4"/>
+                        </g>
+                        <circle cx="96" cy="32" r="4" fill="white" opacity="0.8"/>
+                    </svg>
+                </div>
+                <h3 class="option-title">方案 A - 极简几何</h3>
+                <p class="option-description">最简洁的设计，突出核心绘图元素</p>
+                <ul class="option-features">
+                    <li>极简主义风格</li>
+                    <li>清晰的几何图形</li>
+                    <li>蓝紫色渐变背景</li>
+                    <li>易于识别和记忆</li>
+                </ul>
+            </div>
+            
+            <!-- 方案 B -->
+            <div class="option-card">
+                <div class="icon-preview">
+                    <svg width="120" height="120" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="bgB" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#ea580c;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bgB)"/>
+                        <g transform="translate(64, 64) rotate(-30)">
+                            <rect x="-3" y="-24" width="6" height="32" rx="3" fill="white" opacity="0.9"/>
+                            <path d="M 0,-24 L 4,-18 L -4,-18 Z" fill="#374151" opacity="0.8"/>
+                            <rect x="-3" y="8" width="6" height="6" rx="3" fill="#fbbf24" opacity="0.9"/>
+                        </g>
+                        <path d="M 32,96 Q 48,80 64,88 Q 80,96 96,80" stroke="white" stroke-width="2" fill="none" opacity="0.6"/>
+                        <circle cx="96" cy="32" r="4" fill="white" opacity="0.8"/>
+                    </svg>
+                </div>
+                <h3 class="option-title">方案 B - 画笔为主</h3>
+                <p class="option-description">突出绘画工具，体现创作特性</p>
+                <ul class="option-features">
+                    <li>直观的画笔造型</li>
+                    <li>动感的绘画轨迹</li>
+                    <li>温暖的橙色调</li>
+                    <li>强调创作过程</li>
+                </ul>
+            </div>
+            
+            <!-- 方案 C -->
+            <div class="option-card">
+                <div class="icon-preview">
+                    <svg width="120" height="120" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="bgC" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bgC)"/>
+                        <g transform="translate(64, 64)" opacity="0.9">
+                            <circle cx="-12" cy="-8" r="10" fill="none" stroke="white" stroke-width="3"/>
+                            <rect x="4" y="-12" width="16" height="8" rx="2" fill="none" stroke="white" stroke-width="3"/>
+                            <path d="M -8,8 L 0,20 L 8,8 Z" fill="none" stroke="white" stroke-width="3"/>
+                        </g>
+                        <circle cx="96" cy="32" r="4" fill="white" opacity="0.8"/>
+                    </svg>
+                </div>
+                <h3 class="option-title">方案 C - 形状组合</h3>
+                <p class="option-description">展示多种绘图形状的组合</p>
+                <ul class="option-features">
+                    <li>多种几何形状</li>
+                    <li>平衡的构图布局</li>
+                    <li>清新的绿色调</li>
+                    <li>体现多功能性</li>
+                </ul>
+            </div>
+            
+            <!-- 方案 D -->
+            <div class="option-card">
+                <div class="icon-preview">
+                    <svg width="120" height="120" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="bgD" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bgD)"/>
+                        <g transform="translate(64, 64)">
+                            <text x="0" y="12" text-anchor="middle" font-family="system-ui" 
+                                  font-size="48" font-weight="700" fill="white">E</text>
+                        </g>
+                        <g opacity="0.6">
+                            <line x1="24" y1="36" x2="32" y2="36" stroke="white" stroke-width="2"/>
+                            <line x1="24" y1="40" x2="28" y2="40" stroke="white" stroke-width="2"/>
+                            <circle cx="96" cy="88" r="2" fill="white"/>
+                            <circle cx="88" cy="96" r="1.5" fill="white"/>
+                        </g>
+                        <circle cx="96" cy="32" r="4" fill="white" opacity="0.8"/>
+                    </svg>
+                </div>
+                <h3 class="option-title">方案 D - 字母标识</h3>
+                <p class="option-description">以 Excalidraw 的 E 字母为主体</p>
+                <ul class="option-features">
+                    <li>品牌字母识别</li>
+                    <li>简约装饰元素</li>
+                    <li>经典紫色调</li>
+                    <li>强化品牌记忆</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 尺寸对比 -->
+        <div class="current-design">
+            <h2 class="current-title">不同尺寸效果对比</h2>
+            <div class="size-comparison">
+                <!-- 128px -->
+                <div>
+                    <div class="icon-preview" style="width: 128px; height: 128px;">
+                        <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="bg128" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                            <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bg128)"/>
+                            <g transform="translate(64, 64)" stroke="white" stroke-width="3" fill="none" opacity="0.9">
+                                <rect x="-16" y="-8" width="12" height="8" rx="1"/>
+                                <circle cx="8" cy="0" r="6"/>
+                                <line x1="-4" y1="-4" x2="2" y2="-4"/>
+                            </g>
+                            <circle cx="96" cy="32" r="4" fill="white" opacity="0.8"/>
+                        </svg>
+                    </div>
+                    <div class="size-label">128×128px</div>
+                </div>
+                
+                <!-- 64px -->
+                <div>
+                    <div class="icon-preview" style="width: 64px; height: 64px;">
+                        <svg width="64" height="64" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="bg64" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                            <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bg64)"/>
+                            <g transform="translate(64, 64)" stroke="white" stroke-width="3" fill="none" opacity="0.9">
+                                <rect x="-16" y="-8" width="12" height="8" rx="1"/>
+                                <circle cx="8" cy="0" r="6"/>
+                                <line x1="-4" y1="-4" x2="2" y2="-4"/>
+                            </g>
+                            <circle cx="96" cy="32" r="4" fill="white" opacity="0.8"/>
+                        </svg>
+                    </div>
+                    <div class="size-label">64×64px</div>
+                </div>
+                
+                <!-- 32px -->
+                <div>
+                    <div class="icon-preview" style="width: 32px; height: 32px;">
+                        <svg width="32" height="32" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="bg32" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                            <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bg32)"/>
+                            <g transform="translate(64, 64)" stroke="white" stroke-width="3" fill="none" opacity="0.9">
+                                <rect x="-16" y="-8" width="12" height="8" rx="1"/>
+                                <circle cx="8" cy="0" r="6"/>
+                                <line x1="-4" y1="-4" x2="2" y2="-4"/>
+                            </g>
+                            <circle cx="96" cy="32" r="4" fill="white" opacity="0.8"/>
+                        </svg>
+                    </div>
+                    <div class="size-label">32×32px</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="selection-note">
+            💡 <strong>选择提示：</strong> 方案A最简洁清晰，适合各种尺寸；方案B突出创作功能；方案C展示多功能性；方案D强化品牌识别。<br>
+            请告诉我你倾向于哪个方案，我将使用你选择的设计更新应用图标。
+        </div>
+    </div>
+</body>
+</html>

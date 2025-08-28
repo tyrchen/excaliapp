@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import { ExcalidrawFile, FileTreeNode, Preferences } from '../types'
 import { convertPreferencesFromRust, convertPreferencesToRust } from '../lib/preferences'
-import { ask } from '@tauri-apps/plugin-dialog'
+import { dialogService } from '../services/dialogService'
 
 interface AppStore {
   // State
@@ -35,7 +35,11 @@ interface AppStore {
   saveCurrentFile: (content?: string) => Promise<void>
   createNewFile: (fileName?: string) => Promise<void>
   renameFile: (oldPath: string, newName: string) => Promise<void>
+  renameDirectory: (oldPath: string, newName: string) => Promise<void>
   deleteFile: (filePath: string) => Promise<boolean>
+  deleteDirectory: (dirPath: string) => Promise<boolean>
+  moveFile: (sourcePath: string, targetDirectory: string) => Promise<void>
+  createDirectory: (parentPath: string, directoryName: string) => Promise<void>
   loadPreferences: () => Promise<void>
   savePreferences: () => Promise<void>
   toggleSidebar: () => void
@@ -161,24 +165,32 @@ export const useStore = create<AppStore>((set, get) => ({
     
     // Check if current file has unsaved changes
     if (state.isDirty && state.activeFile) {
-      const response = await ask(
-        `Do you want to save changes to "${state.activeFile.name}" before switching files?`,
-        {
-          title: 'Unsaved Changes',
-          kind: 'warning',
-          okLabel: 'Save',
-          cancelLabel: "Don't Save"
-        }
-      )
+      const response = await dialogService.showDialog({
+        title: 'Save Your Current Work? - OwnExcaliDesk',
+        message: `You have unsaved changes in "${state.activeFile.name.replace('.excalidraw', '')}".
+
+Would you like to save your work before switching to another file?`,
+        type: 'info',
+        confirmLabel: 'Save & Switch',
+        cancelLabel: "Don't Save",
+        showCancel: true
+      })
       
       if (response === true) {
         // User chose to save
         await state.saveCurrentFile()
-      } else if (response === null) {
-        // User cancelled - don't switch files
+      } else if (response === false) {
+        // User chose "Don't Save" - clear the dirty state and file modified status
+        const currentFilePath = state.activeFile.path
+        set({ isDirty: false })
+        // Clear the modified status for the abandoned file
+        state.markFileAsModified(currentFilePath, false)
+        state.markTreeNodeAsModified(currentFilePath, false)
+      } else {
+        // User cancelled/closed dialog (response is null) - don't switch files
         return
       }
-      // If response is false, user chose "Don't Save" - continue without saving
+      // Continue with file switching
     }
     
     try {
@@ -235,24 +247,32 @@ export const useStore = create<AppStore>((set, get) => ({
     
     // Check if current file has unsaved changes
     if (state.isDirty && state.activeFile) {
-      const response = await ask(
-        `Do you want to save changes to "${state.activeFile.name}" before switching files?`,
-        {
-          title: 'Unsaved Changes',
-          kind: 'warning',
-          okLabel: 'Save',
-          cancelLabel: "Don't Save"
-        }
-      )
+      const response = await dialogService.showDialog({
+        title: 'Save Your Current Work? - OwnExcaliDesk',
+        message: `You have unsaved changes in "${state.activeFile.name.replace('.excalidraw', '')}".
+
+Would you like to save your work before switching to another file?`,
+        type: 'info',
+        confirmLabel: 'Save & Switch',
+        cancelLabel: "Don't Save",
+        showCancel: true
+      })
       
       if (response === true) {
         // User chose to save
         await state.saveCurrentFile()
-      } else if (response === null) {
-        // User cancelled - don't switch files
+      } else if (response === false) {
+        // User chose "Don't Save" - clear the dirty state and file modified status
+        const currentFilePath = state.activeFile.path
+        set({ isDirty: false })
+        // Clear the modified status for the abandoned file
+        state.markFileAsModified(currentFilePath, false)
+        state.markTreeNodeAsModified(currentFilePath, false)
+      } else {
+        // User cancelled/closed dialog (response is null) - don't switch files
         return
       }
-      // If response is false, user chose "Don't Save" - continue without saving
+      // Continue with file switching
     }
     
     try {
@@ -366,20 +386,21 @@ export const useStore = create<AppStore>((set, get) => ({
     
     // Check if current file has unsaved changes
     if (state.isDirty && state.activeFile) {
-      const response = await ask(
-        `Do you want to save changes to "${state.activeFile.name}" before creating a new file?`,
-        {
-          title: 'Unsaved Changes',
-          kind: 'warning',
-          okLabel: 'Save',
-          cancelLabel: "Don't Save"
-        }
-      )
+      const response = await dialogService.showDialog({
+        title: 'Save Before Creating New File? - OwnExcaliDesk',
+        message: `You have unsaved changes in "${state.activeFile.name.replace('.excalidraw', '')}".
+
+Would you like to save your work before creating a new file?`,
+        type: 'info',
+        confirmLabel: 'Save & Create New',
+        cancelLabel: "Don't Save",
+        showCancel: true
+      })
       
       if (response === true) {
         // User chose to save
         await state.saveCurrentFile()
-      } else if (response === null) {
+      } else if (response === false) {
         // User cancelled - don't create new file
         return
       }
@@ -468,6 +489,26 @@ export const useStore = create<AppStore>((set, get) => ({
     }
   },
   
+  // Rename directory
+  renameDirectory: async (oldPath, newName) => {
+    try {
+      const newPath = await invoke<string>('rename_directory', {
+        oldPath,
+        newName,
+      })
+      
+      const state = get()
+      
+      // Reload the file tree
+      if (state.currentDirectory) {
+        await state.loadFileTree(state.currentDirectory)
+      }
+    } catch (error) {
+      console.error('Failed to rename directory:', error)
+      alert(`Failed to rename directory: ${error}`)
+    }
+  },
+  
   // Delete file
   // NOTE: Confirmation should be handled by the caller
   deleteFile: async (filePath) => {
@@ -502,6 +543,44 @@ export const useStore = create<AppStore>((set, get) => ({
       console.error('[deleteFile] Failed to delete file:', error)
       console.error('[deleteFile] Error details:', JSON.stringify(error))
       alert(`Failed to delete file: ${error}`)
+      throw error // Re-throw so caller knows deletion failed
+    }
+  },
+
+  // Delete directory
+  // NOTE: Confirmation should be handled by the caller
+  deleteDirectory: async (dirPath) => {
+    console.log('[deleteDirectory] Starting deletion for:', dirPath)
+    try {
+      // Proceed with deletion directly (confirmation handled by caller)
+      console.log('[deleteDirectory] Calling Rust delete_directory command...')
+      const result = await invoke('delete_directory', { dirPath })
+      console.log('[deleteDirectory] Rust command completed, result:', result)
+      
+      const state = get()
+      
+      // If the active file was in the deleted directory, clear it
+      if (state.activeFile?.path.startsWith(dirPath)) {
+        console.log('[deleteDirectory] Clearing active file in deleted directory')
+        set({
+          activeFile: null,
+          fileContent: null,
+          isDirty: false,
+        })
+      }
+      
+      // Reload the file tree
+      if (state.currentDirectory) {
+        console.log('[deleteDirectory] Reloading file tree for:', state.currentDirectory)
+        await state.loadFileTree(state.currentDirectory)
+      }
+      
+      console.log('[deleteDirectory] Directory deleted successfully:', dirPath)
+      return true // Return success
+    } catch (error) {
+      console.error('[deleteDirectory] Failed to delete directory:', error)
+      console.error('[deleteDirectory] Error details:', JSON.stringify(error))
+      alert(`Failed to delete directory: ${error}`)
       throw error // Re-throw so caller knows deletion failed
     }
   },
@@ -575,6 +654,60 @@ export const useStore = create<AppStore>((set, get) => ({
       await invoke('save_preferences', { preferences: prefsToSave })
     } catch (error) {
       console.error('Failed to save preferences:', error)
+    }
+  },
+
+  // Move file to a different directory
+  moveFile: async (sourcePath, targetDirectory) => {
+    try {
+      const newPath = await invoke<string>('move_file', {
+        sourcePath,
+        targetDirectory,
+      })
+      
+      const state = get()
+      
+      // If the moved file was active, update its path
+      if (state.activeFile?.path === sourcePath) {
+        const fileName = newPath.split('/').pop() || state.activeFile.name
+        set({
+          activeFile: {
+            ...state.activeFile,
+            path: newPath,
+            name: fileName,
+          },
+        })
+      }
+      
+      // Reload the file tree
+      if (state.currentDirectory) {
+        await state.loadFileTree(state.currentDirectory)
+      }
+    } catch (error) {
+      console.error('Failed to move file:', error)
+      // 移除弹窗提醒，只在控制台记录错误
+      throw error
+    }
+  },
+  
+  // Create new directory
+  createDirectory: async (parentPath, directoryName) => {
+    try {
+      await invoke<string>('create_directory', {
+        parentPath,
+        directoryName,
+      })
+      
+      const state = get()
+      
+      // Reload the file tree
+      if (state.currentDirectory) {
+        await state.loadFileTree(state.currentDirectory)
+      }
+    } catch (error) {
+      console.error('Failed to create directory:', error)
+      alert(`Failed to create directory: ${error}`)
+      throw error
     }
   },
 

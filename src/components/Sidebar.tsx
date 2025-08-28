@@ -1,5 +1,5 @@
 import { ScrollArea } from '@radix-ui/react-scroll-area'
-import { FolderOpen, Plus } from 'lucide-react'
+import { FolderOpen, Plus, PanelLeftClose, FolderPlus } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { TreeView } from './TreeView'
 import { FileTreeNode } from '../types'
@@ -25,6 +25,8 @@ export function Sidebar() {
     activeFile,
     loadFileFromTree,
     createNewFile,
+    createDirectory,
+    toggleSidebar,
   } = useStore()
 
   const handleSelectDirectory = async () => {
@@ -50,23 +52,70 @@ export function Sidebar() {
     await createNewFile(fileName)
   }
 
+  const handleNewFolder = async () => {
+    console.log('handleNewFolder clicked')
+    
+    if (!currentDirectory) {
+      console.log('No current directory, selecting one first')
+      // If no directory, select one first
+      const dir = await invoke<string | null>('select_directory')
+      if (dir) {
+        await useStore.getState().loadDirectory(dir)
+      }
+      return
+    }
+    
+    console.log('Current directory:', currentDirectory)
+    
+    try {
+      // Generate default folder name like files do
+      const defaultFolderName = `New Folder ${Date.now()}`
+      console.log('Creating directory with default name:', currentDirectory, defaultFolderName)
+      
+      await createDirectory(currentDirectory, defaultFolderName)
+      console.log('Directory created successfully')
+    } catch (error) {
+      console.error('Error in handleNewFolder:', error)
+      alert(`Failed to create folder: ${error}`)
+    }
+  }
+
   return (
     <div className="w-[280px] h-full bg-gray-50 border-r border-gray-200 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={handleSelectDirectory}
+            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span className="text-sm font-medium truncate">
+              {currentDirectory ? currentDirectory.split('/').pop() : 'Select Directory'}
+            </span>
+          </button>
+          
+          <button
+            onClick={toggleSidebar}
+            className="p-2 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors ml-2"
+            title="Hide sidebar"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
+        </div>
+        
         <button
-          onClick={handleSelectDirectory}
+          onClick={handleNewFolder}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+          title={!currentDirectory ? 'Select a directory first' : 'Create a new folder'}
         >
-          <FolderOpen className="w-4 h-4" />
-          <span className="text-sm font-medium truncate">
-            {currentDirectory ? currentDirectory.split('/').pop() : 'Select Directory'}
-          </span>
+          <FolderPlus className="w-4 h-4" />
+          <span className="text-sm">New Folder</span>
         </button>
         
         <button
           onClick={handleNewFile}
-          className="w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+          className="w-full mt-1 flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
           title={!currentDirectory ? 'Select a directory first' : 'Create a new Excalidraw file'}
         >
           <Plus className="w-4 h-4" />

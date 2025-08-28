@@ -143,22 +143,20 @@ fn build_file_tree(dir: &Path, tree: &mut Vec<FileTreeNode>) -> Result<(), Strin
                     let mut children = Vec::new();
                     build_file_tree(&path, &mut children)?;
 
-                    // Only include directories that contain .excalidraw files (directly or in subdirs)
-                    if has_excalidraw_files(&path)? {
-                        children.sort_by(|a, b| match (a.is_directory, b.is_directory) {
-                            (true, false) => std::cmp::Ordering::Less,
-                            (false, true) => std::cmp::Ordering::Greater,
-                            _ => a.name.cmp(&b.name),
-                        });
+                    // Always include directories (don't filter empty ones)
+                    children.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+                        (true, false) => std::cmp::Ordering::Less,
+                        (false, true) => std::cmp::Ordering::Greater,
+                        _ => a.name.cmp(&b.name),
+                    });
 
-                        tree.push(FileTreeNode {
-                            name,
-                            path: path.to_string_lossy().to_string(),
-                            is_directory: true,
-                            modified: false,
-                            children: Some(children),
-                        });
-                    }
+                    tree.push(FileTreeNode {
+                        name,
+                        path: path.to_string_lossy().to_string(),
+                        is_directory: true,
+                        modified: false,
+                        children: Some(children),
+                    });
                 } else if path.is_file() {
                     if let Some(extension) = path.extension() {
                         if extension == "excalidraw" {
@@ -489,6 +487,36 @@ async fn rename_file(old_path: String, new_name: String) -> Result<String, Strin
 }
 
 #[tauri::command]
+async fn rename_directory(old_path: String, new_name: String) -> Result<String, String> {
+    // Validate the old path
+    let old_path = Path::new(&old_path);
+    let validated_old = security::validate_path(old_path, None)?;
+    
+    if !validated_old.exists() {
+        return Err("Directory does not exist".to_string());
+    }
+    
+    if !validated_old.is_dir() {
+        return Err("Path is not a directory".to_string());
+    }
+
+    let parent = validated_old.parent().ok_or("Invalid directory path")?;
+    
+    // Safely create the new path
+    let new_path = security::safe_path_join(parent, &new_name)?;
+
+    if new_path.exists() && new_path != old_path {
+        return Err("A directory with that name already exists".to_string());
+    }
+
+    // Rename the directory
+    fs::rename(old_path, &new_path)
+        .map_err(|e| format!("Failed to rename directory: {}", e))?;
+
+    Ok(new_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 async fn delete_file(file_path: String) -> Result<(), String> {
     // Validate path to prevent traversal attacks
     let path = Path::new(&file_path);
@@ -505,6 +533,127 @@ async fn delete_file(file_path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     
     Ok(())
+}
+
+#[tauri::command]
+async fn delete_directory(dir_path: String) -> Result<(), String> {
+    // Validate path to prevent traversal attacks
+    let path = Path::new(&dir_path);
+    let validated_path = security::validate_path(path, None)?;
+    
+    if !validated_path.exists() {
+        return Err("Directory does not exist".to_string());
+    }
+    
+    if !validated_path.is_dir() {
+        return Err("Path is not a directory".to_string());
+    }
+
+    // Recursively remove the directory and all its contents
+    fs::remove_dir_all(&validated_path)
+        .map_err(|e| format!("Failed to delete directory: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn move_file(source_path: String, target_directory: String) -> Result<String, String> {
+    // Validate source path
+    let source = Path::new(&source_path);
+    let validated_source = security::validate_path(source, None)?;
+    
+    if !validated_source.exists() {
+        return Err("Source file does not exist".to_string());
+    }
+    
+    // Ensure we're only moving excalidraw files
+    security::validate_excalidraw_file(&validated_source)?;
+    
+    // Validate target directory
+    let target_dir = Path::new(&target_directory);
+    let validated_target_dir = security::validate_path(target_dir, None)?;
+    
+    if !validated_target_dir.is_dir() {
+        return Err("Target is not a directory".to_string());
+    }
+    
+    // Get the filename from the source
+    let file_name = validated_source
+        .file_name()
+        .ok_or("Invalid source file name")?;
+    
+    // Create the target path
+    let target_path = security::safe_path_join(&validated_target_dir, &file_name.to_string_lossy())?;
+    
+    // Check if source and target are the same (moving to same directory)
+    if validated_source.canonicalize().unwrap_or(validated_source.clone()) == 
+       target_path.canonicalize().unwrap_or(target_path.clone()) {
+        return Ok(validated_source.to_string_lossy().to_string());
+    }
+    
+    // Check if target already exists
+    if target_path.exists() {
+        return Err("A file with that name already exists in the target directory".to_string());
+    }
+    
+    // Read content from source
+    let content = fs::read_to_string(&validated_source)
+        .map_err(|e| format!("Failed to read source file: {}", e))?;
+    
+    // Write to target
+    fs::write(&target_path, &content)
+        .map_err(|e| format!("Failed to write to target: {}", e))?;
+    
+    // Verify target file
+    let verify_content = fs::read_to_string(&target_path)
+        .map_err(|e| format!("Failed to verify target file: {}", e))?;
+    
+    if verify_content != content {
+        // Cleanup failed target file
+        let _ = fs::remove_file(&target_path);
+        return Err("File content verification failed".to_string());
+    }
+    
+    // Remove source file after successful copy
+    fs::remove_file(&validated_source)
+        .map_err(|e| format!("Failed to remove source file: {}", e))?;
+    
+    Ok(target_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn create_directory(parent_path: String, directory_name: String) -> Result<String, String> {
+    // Validate parent path
+    let parent = Path::new(&parent_path);
+    let validated_parent = security::validate_path(parent, None)?;
+    
+    if !validated_parent.is_dir() {
+        return Err("Parent path is not a directory".to_string());
+    }
+    
+    // Validate directory name (no path separators, etc.)
+    if directory_name.contains('/') || directory_name.contains('\\') || directory_name.trim().is_empty() {
+        return Err("Invalid directory name".to_string());
+    }
+    
+    // Create the new directory path
+    let new_dir_path = security::safe_path_join(&validated_parent, &directory_name)?;
+    
+    // Check if directory already exists
+    if new_dir_path.exists() {
+        return Err("A file or directory with that name already exists".to_string());
+    }
+    
+    // Create the directory
+    fs::create_dir(&new_dir_path)
+        .map_err(|e| format!("Failed to create directory: {}", e))?;
+    
+    // Verify directory was created
+    if !new_dir_path.is_dir() {
+        return Err("Directory creation verification failed".to_string());
+    }
+    
+    Ok(new_dir_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -525,6 +674,13 @@ async fn save_preferences(app: AppHandle, preferences: Preferences) -> Result<()
 #[tauri::command]
 async fn force_close_app(app: AppHandle) -> Result<(), String> {
     app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+async fn set_title(title: String, window: tauri::Window) -> Result<(), String> {
+    window.set_title(&title)
+        .map_err(|e| format!("Failed to set title: {}", e))?;
     Ok(())
 }
 
@@ -638,11 +794,16 @@ pub fn run() {
             save_file_as,
             create_new_file,
             rename_file,
+            rename_directory,
             delete_file,
+            delete_directory,
+            move_file,
+            create_directory,
             get_preferences,
             save_preferences,
             watch_directory,
             force_close_app,
+            set_title,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

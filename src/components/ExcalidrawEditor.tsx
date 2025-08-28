@@ -6,6 +6,7 @@ type ExcalidrawAppState = any
 import { useStore } from '../store/useStore'
 import { setGlobalExcalidrawAPI } from '../hooks/useMenuHandler'
 import { TIMING } from '../constants'
+import { EmptyState } from './EmptyState'
 
 export function ExcalidrawEditor() {
   const activeFile = useStore(state => state.activeFile)
@@ -214,14 +215,7 @@ export function ExcalidrawEditor() {
 
 
   if (!activeFile) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <p className="text-lg mb-2">No file selected</p>
-          <p className="text-sm">Select a file from the sidebar to start editing</p>
-        </div>
-      </div>
-    )
+    return <EmptyState />
   }
 
   // Use key prop to force remount when switching files

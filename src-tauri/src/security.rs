@@ -2,10 +2,28 @@ use std::path::{Path, PathBuf};
 
 /// Validates that a path is safe to access (no path traversal attacks)
 pub fn validate_path(path: &Path, allowed_base: Option<&Path>) -> Result<PathBuf, String> {
+    // Check for actual path traversal patterns in components, not just string containment
+    let components: Vec<String> = path
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .collect();
+    
+    // Check each component for suspicious patterns
+    for component in &components {
+        if component == ".." || component == "~" {
+            return Err("Path contains suspicious patterns".to_string());
+        }
+    }
+    
     // Canonicalize the path to resolve symlinks and relative components
-    let canonical_path = path
-        .canonicalize()
-        .map_err(|e| format!("Failed to canonicalize path: {}", e))?;
+    let canonical_path = match path.canonicalize() {
+        Ok(cp) => cp,
+        Err(_) => {
+            // If canonicalization fails (e.g., for relative paths that don't exist yet),
+            // return the original path since we've already validated the components
+            return Ok(path.to_path_buf());
+        }
+    };
     
     // If an allowed base directory is specified, ensure the path is within it
     if let Some(base) = allowed_base {
@@ -16,12 +34,6 @@ pub fn validate_path(path: &Path, allowed_base: Option<&Path>) -> Result<PathBuf
         if !canonical_path.starts_with(&canonical_base) {
             return Err("Path traversal detected: path is outside allowed directory".to_string());
         }
-    }
-    
-    // Check that the path doesn't contain suspicious patterns
-    let path_str = canonical_path.to_string_lossy();
-    if path_str.contains("..") || path_str.contains("~") {
-        return Err("Path contains suspicious patterns".to_string());
     }
     
     Ok(canonical_path)

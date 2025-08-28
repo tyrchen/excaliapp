@@ -1,0 +1,75 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 主背景渐变 - 科技感色彩 -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#f97316;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#ea580c;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#dc2626;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- 内层背景渐变 -->
+    <linearGradient id="innerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fed7aa;stop-opacity:0.12" />
+      <stop offset="100%" style="stop-color:#fdba74;stop-opacity:0.06" />
+    </linearGradient>
+    
+    <!-- 科技感边框渐变 -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.3" />
+      <stop offset="50%" style="stop-color:#ffffff;stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0.2" />
+    </linearGradient>
+    
+    <!-- 主阴影 - 科技感 -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+    
+    <!-- 内部元素阴影 -->
+    <filter id="innerShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#dc2626" flood-opacity="0.25"/>
+    </filter>
+    
+    <!-- 连接点光晕 -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#ffffff" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  
+  <!-- 主背景 -->
+  <rect x="4" y="4" width="120" height="120" rx="32" fill="url(#bgGrad)" filter="url(#shadow)"/>
+  
+  <!-- 科技感细边框 -->
+  <rect x="4" y="4" width="120" height="120" rx="32" fill="none" stroke="url(#borderGrad)" stroke-width="1"/>
+  
+  <!-- 内层背景 -->
+  <rect x="12" y="12" width="104" height="104" rx="28" fill="url(#innerBg)"/>
+  
+  <!-- 形状组合设计 - 放大并简化 -->
+  <g transform="translate(64, 64)">
+    <!-- 背景形状层 - 简化，无阴影 -->
+    <g opacity="0.15">
+      <circle cx="-16" cy="-10" r="12" fill="white"/>
+      <rect x="6" y="-18" width="18" height="12" rx="3" fill="white"/>
+      <path d="M -10,4 L 0,20 L 10,4 Z" fill="white"/>
+    </g>
+    
+    <!-- 主形状层 - 放大 -->
+    <g opacity="0.95" filter="url(#innerShadow)">
+      <!-- 圆形 - 左上，放大 -->
+      <circle cx="-16" cy="-10" r="10" fill="none" stroke="white" stroke-width="3"/>
+      
+      <!-- 矩形 - 右上，放大 -->
+      <rect x="8" y="-16" width="16" height="10" rx="2" fill="none" stroke="white" stroke-width="3"/>
+      
+      <!-- 三角形 - 下方居中，放大 -->
+      <path d="M -9,5 L 0,18 L 9,5 Z" fill="none" stroke="white" stroke-width="3" stroke-linejoin="round"/>
+    </g>
+    
+    <!-- 连接点 - 简化光效 -->
+    <circle cx="0" cy="-1" r="2.5" fill="white" opacity="0.4" filter="url(#glow)"/>
+    <circle cx="0" cy="-1" r="1.5" fill="white" opacity="0.8"/>
+    <circle cx="0" cy="-1" r="0.8" fill="#fb923c"/>
+  </g>
+</svg>

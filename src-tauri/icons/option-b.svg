@@ -1,0 +1,27 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgB" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ea580c;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 主背景 -->
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bgB)"/>
+  
+  <!-- 画笔主体 -->
+  <g transform="translate(64, 64) rotate(-30)">
+    <!-- 笔杆 -->
+    <rect x="-3" y="-24" width="6" height="32" rx="3" fill="white" opacity="0.9"/>
+    <!-- 笔尖 -->
+    <path d="M 0,-24 L 4,-18 L -4,-18 Z" fill="#374151" opacity="0.8"/>
+    <!-- 笔帽 -->
+    <rect x="-3" y="8" width="6" height="6" rx="3" fill="#fbbf24" opacity="0.9"/>
+  </g>
+  
+  <!-- 绘画轨迹 -->
+  <path d="M 32,96 Q 48,80 64,88 Q 80,96 96,80" stroke="white" stroke-width="2" fill="none" opacity="0.6"/>
+  
+  <!-- Own 标识 -->
+  <circle cx="96" cy="32" r="4" fill="white" opacity="0.8"/>
+</svg>

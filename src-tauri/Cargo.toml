@@ -1,8 +1,8 @@
 [package]
-name = "excaliapp"
+name = "ownexcalidesk"
 version = "0.2.0"
-description = "Excaliapp is a wrapper around Excalidraw"
-authors = ["you"]
+description = "OwnExcaliDesk - 基于 Excalidraw 的桌面绘图应用，支持流程图、思维导图等可视化设计"
+authors = ["柏玄 (Yangkai.Shen) <yangkai.shen@example.com>"]
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,7 +11,7 @@ edition = "2024"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "excaliapp_lib"
+name = "ownexcalidesk_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

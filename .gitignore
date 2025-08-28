@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 *.lock
 package-lock.json
+.specstory/
+.serena/
+.history/
+release/
