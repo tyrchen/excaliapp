@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use tauri::{
+    AppHandle, Emitter, Manager, Runtime,
     menu::{
         AboutMetadataBuilder, Menu, MenuBuilder, MenuId, MenuItemBuilder, PredefinedMenuItem,
         Submenu, SubmenuBuilder,
     },
-    AppHandle, Emitter, Manager, Runtime,
 };
 
 use crate::AppState;
@@ -40,6 +40,10 @@ fn create_file_menu<R: Runtime>(
         .accelerator("CmdOrCtrl+N")
         .build(app)?;
 
+    let new_folder = MenuItemBuilder::with_id("new_folder", "New Folder")
+        .accelerator("CmdOrCtrl+Shift+N")
+        .build(app)?;
+
     let save = MenuItemBuilder::with_id("save", "Save")
         .accelerator("CmdOrCtrl+S")
         .build(app)?;
@@ -67,6 +71,7 @@ fn create_file_menu<R: Runtime>(
         .items(&[
             &open_directory,
             &new_file,
+            &new_folder,
             &separator,
             &save,
             &save_as,
@@ -89,7 +94,6 @@ fn create_recent_directories_menu<R: Runtime>(
 
     Ok(recent_menu)
 }
-
 
 fn create_edit_menu<R: Runtime>(
     app: &AppHandle<R>,

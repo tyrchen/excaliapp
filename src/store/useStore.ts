@@ -34,6 +34,7 @@ interface AppStore {
   loadFileFromTree: (node: FileTreeNode) => Promise<void>
   saveCurrentFile: (content?: string) => Promise<void>
   createNewFile: (fileName?: string) => Promise<void>
+  createNewFolder: (folderName?: string) => Promise<void>
   renameFile: (oldPath: string, newName: string) => Promise<void>
   deleteFile: (filePath: string) => Promise<boolean>
   loadPreferences: () => Promise<void>
@@ -431,7 +432,54 @@ export const useStore = create<AppStore>((set, get) => ({
       alert(`Failed to create file: ${error}`)
     }
   },
-  
+
+  // Create new folder
+  createNewFolder: async (folderName) => {
+    const state = get()
+    let { currentDirectory } = state
+
+    // Check if a directory is selected
+    if (!currentDirectory) {
+      // Prompt to select a directory if none is selected
+      try {
+        const dir = await invoke<string | null>('select_directory')
+        if (!dir) {
+          return
+        }
+        // Load the selected directory
+        await state.loadDirectory(dir)
+        currentDirectory = dir
+      } catch (error) {
+        console.error('[createNewFolder] Failed to select directory:', error)
+        alert(`Failed to select directory: ${error}`)
+        return
+      }
+    }
+
+    // Generate default folder name if not provided
+    const finalFolderName = folderName || `New Folder-${Date.now()}`
+
+    try {
+      console.log('[createNewFolder] Creating folder:', finalFolderName)
+
+      // Create the new folder
+      const folderPath = await invoke<string>('create_new_folder', {
+        directory: currentDirectory,
+        folderName: finalFolderName,
+      })
+
+      console.log('[createNewFolder] Folder created:', folderPath)
+
+      // Reload the file tree to show the new folder
+      await state.loadFileTree(currentDirectory)
+
+      console.log('[createNewFolder] File tree reloaded')
+    } catch (error) {
+      console.error('[createNewFolder] Failed to create folder:', error)
+      alert(`Failed to create folder: ${error}`)
+    }
+  },
+
   // Rename file
   renameFile: async (oldPath, newName) => {
     try {

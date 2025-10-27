@@ -21,6 +21,7 @@ export function useMenuHandler() {
   const {
     loadDirectory,
     createNewFile,
+    createNewFolder,
     saveCurrentFile,
     activeFile,
     toggleSidebar,
@@ -50,6 +51,10 @@ export function useMenuHandler() {
 
           case 'new_file':
             handleNewFile()
+            break
+
+          case 'new_folder':
+            handleNewFolder()
             break
 
           case 'save':
@@ -127,6 +132,7 @@ export function useMenuHandler() {
   }, [
     loadDirectory,
     createNewFile,
+    createNewFolder,
     saveCurrentFile,
     activeFile,
     toggleSidebar,
@@ -157,6 +163,23 @@ export function useMenuHandler() {
     // Create with timestamp filename
     const fileName = `Untitled-${Date.now()}.excalidraw`
     await createNewFile(fileName)
+  }
+
+  const handleNewFolder = async () => {
+    const state = useStore.getState()
+
+    // If no directory is selected, select one first
+    if (!state.currentDirectory) {
+      const dir = await invoke<string | null>('select_directory')
+      if (dir) {
+        await state.loadDirectory(dir)
+      }
+      return
+    }
+
+    // Create with timestamp folder name
+    const folderName = `New Folder-${Date.now()}`
+    await createNewFolder(folderName)
   }
 
   const handleSaveAs = async () => {
@@ -276,6 +299,7 @@ Keyboard Shortcuts:
 File:
   Open Directory: Cmd/Ctrl+O
   New File: Cmd/Ctrl+N
+  New Folder: Cmd/Ctrl+Shift+N
   Save: Cmd/Ctrl+S
   Save As: Cmd/Ctrl+Shift+S
   Quit: Cmd/Ctrl+Q
