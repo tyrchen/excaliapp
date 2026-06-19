@@ -1,143 +1,150 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
-// Type definitions for Excalidraw elements and state
-type ExcalidrawElement = any
-type ExcalidrawAppState = any
 import { useStore } from '../store/useStore'
 import { setGlobalExcalidrawAPI } from '../hooks/useMenuHandler'
 import { TIMING } from '../constants'
+import type { OpenTab } from '../types'
 
-export function ExcalidrawEditor() {
-  const activeFile = useStore(state => state.activeFile)
-  const fileContent = useStore(state => state.fileContent)
-  const presentationMode = useStore(state => state.presentationMode)
-  const theme = useStore(state => state.preferences.theme)
-  const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const lastSavedContentRef = useRef<string>('')
-  const lastSavedElementsRef = useRef<string>('')
-  const isUserChangeRef = useRef(true)
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const previousFilePathRef = useRef<string | null>(null)
+type ExcalidrawElement = any
+type ExcalidrawAppState = any
+
+interface EditorPaneProps {
+  tab: OpenTab
+  isActive: boolean
+  presentationMode: boolean
+  theme: 'light' | 'dark'
+}
+
+function EditorPane({ tab, isActive, presentationMode, theme }: EditorPaneProps) {
+  const [isReady, setIsReady] = useState(false)
+  const excalidrawAPIRef = useRef<any>(null)
   const initialLoadCompleteRef = useRef(false)
+  const isUserChangeRef = useRef(false)
+  const lastSavedElementsRef = useRef(JSON.stringify(tab.cachedScene.elements || []))
+  const hasCenteredInitialContentRef = useRef(false)
+  const centerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const centerChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const initialData = useMemo(() => ({
+    elements: tab.cachedScene.elements,
+    appState: tab.cachedScene.appState,
+    files: tab.cachedScene.files,
+  }), [])
 
-  // Parse initial data from fileContent
-  const initialData = useMemo(() => {
-    if (!fileContent || !activeFile) return null
-    
-    // Check if we're switching files
-    if (activeFile.path !== previousFilePathRef.current) {
-      previousFilePathRef.current = activeFile.path
-      setIsLoading(true)
-      // Disable user change detection during initial load
-      isUserChangeRef.current = false
-      initialLoadCompleteRef.current = false
+  const enableChangeTracking = useCallback(() => {
+    initialLoadCompleteRef.current = true
+    isUserChangeRef.current = true
+    setIsReady(true)
+  }, [])
+
+  const clearCenterTimers = useCallback(() => {
+    if (centerTimerRef.current) {
+      clearTimeout(centerTimerRef.current)
+      centerTimerRef.current = null
     }
-    
-    try {
-      const data = JSON.parse(fileContent)
-      // Store this as our baseline for change detection
-      lastSavedContentRef.current = fileContent
-      lastSavedElementsRef.current = JSON.stringify(data.elements || [])
-      
-      
-      return {
-        elements: data.elements || [],
-        appState: {
-          ...data.appState,
-          zoom: { value: 1 },
-          scrollX: 0,
-          scrollY: 0,
-        },
-        files: data.files,
-      }
-    } catch (error) {
-      setIsLoading(false)
-      return null
+    if (centerChangeTimerRef.current) {
+      clearTimeout(centerChangeTimerRef.current)
+      centerChangeTimerRef.current = null
     }
-  }, [activeFile?.path]) // Only re-parse when switching files, not on content changes
+  }, [])
 
-  // Center content and re-enable user change detection after initial load
+  const centerInitialContent = useCallback((api = excalidrawAPIRef.current) => {
+    if (!isActive || !api || hasCenteredInitialContentRef.current) {
+      return
+    }
+
+    const elements = tab.cachedScene.elements || []
+    if (elements.length === 0) {
+      hasCenteredInitialContentRef.current = true
+      enableChangeTracking()
+      return
+    }
+
+    hasCenteredInitialContentRef.current = true
+    isUserChangeRef.current = false
+    initialLoadCompleteRef.current = false
+    clearCenterTimers()
+
+    centerTimerRef.current = setTimeout(() => {
+      api.scrollToContent(elements, {
+        fitToContent: true,
+      })
+      api.refresh?.()
+
+      centerChangeTimerRef.current = setTimeout(() => {
+        centerChangeTimerRef.current = null
+        enableChangeTracking()
+      }, TIMING.USER_CHANGE_ENABLE_DELAY)
+    }, TIMING.FILE_LOAD_DELAY)
+  }, [
+    clearCenterTimers,
+    enableChangeTracking,
+    isActive,
+    tab.cachedScene.elements,
+  ])
+
   useEffect(() => {
-    if (excalidrawAPI && initialData && isLoading && activeFile) {
-      // Store the current file path to check later
-      const currentFilePath = activeFile.path
-      
-      // Give Excalidraw time to process the initial data
-      const timer = setTimeout(() => {
-        // Center the content if there are elements
-        if (initialData.elements && initialData.elements.length > 0) {
-          excalidrawAPI.scrollToContent(initialData.elements, {
-            fitToContent: true,
-          })
-        }
-        
-        // Hide loading and enable user change detection
-        setTimeout(() => {
-          setIsLoading(false)
-          initialLoadCompleteRef.current = true
-          
-          // Wait a bit more before enabling user change detection
-          // to ensure all initial onChange events have fired
-          setTimeout(() => {
-            isUserChangeRef.current = true
-          }, TIMING.USER_CHANGE_ENABLE_DELAY)
-          
-          // Only mark file as clean if we're still on the same file
-          const store = useStore.getState()
-          if (store.activeFile?.path === currentFilePath) {
-            store.setIsDirty(false)
-            store.markFileAsModified(currentFilePath, false)
-            store.markTreeNodeAsModified(currentFilePath, false)
-          }
-        }, TIMING.LOADING_HIDE_DELAY)
-      }, TIMING.FILE_LOAD_DELAY)
-      
-      return () => clearTimeout(timer)
+    centerInitialContent()
+  }, [centerInitialContent])
+
+  useEffect(() => {
+    if (isActive && excalidrawAPIRef.current) {
+      setGlobalExcalidrawAPI(excalidrawAPIRef.current)
     }
-  }, [excalidrawAPI, initialData, isLoading, activeFile?.path])
+  }, [isActive])
 
+  useEffect(() => {
+    return () => {
+      clearCenterTimers()
+    }
+  }, [clearCenterTimers])
 
-  // Handle changes with debouncing
+  useEffect(() => {
+    const unsubscribe = useStore.subscribe((state, prevState) => {
+      const wasSaved =
+        prevState.activeFile?.path === tab.path &&
+        state.activeFile?.path === tab.path &&
+        prevState.isDirty &&
+        !state.isDirty
+
+      if (wasSaved && state.fileContent) {
+        try {
+          const data = JSON.parse(state.fileContent)
+          lastSavedElementsRef.current = JSON.stringify(data.elements || [])
+        } catch {
+          // Ignore parse errors.
+        }
+      }
+    })
+
+    return unsubscribe
+  }, [tab.path])
+
   const handleChange = useCallback((
     elements: readonly ExcalidrawElement[],
     appState: ExcalidrawAppState,
     files: any
   ) => {
-    // Skip if no active file
-    if (!activeFile) {
+    if (!isActive || !isUserChangeRef.current || !initialLoadCompleteRef.current) {
+      lastSavedElementsRef.current = JSON.stringify(elements || [])
       return
     }
 
-    // Skip if this is not a user change (initial load or programmatic update)
-    if (!isUserChangeRef.current || !initialLoadCompleteRef.current) {
-      // Still update our baseline during initial load
-      const currentElements = JSON.stringify(elements || [])
-      lastSavedElementsRef.current = currentElements
-      return
-    }
-
-    // Compare only elements to detect actual changes
     const currentElements = JSON.stringify(elements || [])
-    
-    // If elements haven't changed from our saved baseline, skip
+
     if (currentElements === lastSavedElementsRef.current) {
       return
     }
 
-    // Update our baseline
     lastSavedElementsRef.current = currentElements
 
-    // Immediately mark as dirty so file switch detection works
     const store = useStore.getState()
     if (!store.isDirty) {
       store.setIsDirty(true)
-      store.markFileAsModified(activeFile.path, true)
-      store.markTreeNodeAsModified(activeFile.path, true)
+      store.markFileAsModified(tab.path, true)
+      store.markTreeNodeAsModified(tab.path, true)
     }
 
-    // Build the new content
     const newContent = JSON.stringify(
       {
         type: 'excalidraw',
@@ -163,61 +170,66 @@ export function ExcalidrawEditor() {
       2
     )
 
-    // Clear existing debounce timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
+    const freshStore = useStore.getState()
+    if (freshStore.activeFile?.path === tab.path) {
+      freshStore.setFileContent(newContent)
     }
+  }, [isActive, tab.path])
 
-    // Debounce only the content update to avoid rapid re-renders
-    debounceTimerRef.current = setTimeout(() => {
-      const freshStore = useStore.getState()
-      
-      // Only update content if we're still on the same file
-      if (freshStore.activeFile?.path === activeFile.path) {
-        freshStore.setFileContent(newContent)
-      }
-    }, TIMING.DEBOUNCE_SAVE) // Debounce save operations
-  }, [activeFile])
+  return (
+    <div
+      className={`absolute inset-0 h-full ${isActive ? 'visible z-10' : 'invisible z-0 pointer-events-none'}`}
+      aria-hidden={!isActive}
+    >
+      <Excalidraw
+        initialData={initialData}
+        excalidrawAPI={(api) => {
+          excalidrawAPIRef.current = api
+          if (isActive) {
+            setGlobalExcalidrawAPI(api)
+            centerInitialContent(api)
+          }
+        }}
+        onChange={handleChange}
+        theme={theme}
+        viewModeEnabled={presentationMode}
+        UIOptions={{
+          canvasActions: {
+            loadScene: false,
+            saveToActiveFile: false,
+            saveAsImage: true,
+            export: {
+              saveFileToDisk: true,
+            },
+          },
+        }}
+      />
+      {!isReady && isActive && (
+        <div className="editor-loading absolute inset-0 z-20 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="editor-spinner h-5 w-5 animate-spin rounded-full border-2" />
+            <span className="text-sm">Loading canvas...</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-  // Handle save - update our reference
-  useEffect(() => {
-    const unsubscribe = useStore.subscribe((state, prevState) => {
-      // When file is saved (isDirty becomes false)
-      if (prevState.isDirty && !state.isDirty && state.fileContent) {
-        lastSavedContentRef.current = state.fileContent
-        try {
-          const data = JSON.parse(state.fileContent)
-          lastSavedElementsRef.current = JSON.stringify(data.elements || [])
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-      
-      // When switching files (activeFile changes)
-      if (state.activeFile?.path !== prevState.activeFile?.path) {
-        // Disable user change detection for file switch
-        isUserChangeRef.current = false
-      }
-    })
-
-    return unsubscribe
-  }, [])
-
-  // Cleanup debounce timer on unmount or file change
-  useEffect(() => {
-    return () => {
-      // If there's a pending content update, flush it immediately before cleanup
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-        debounceTimerRef.current = null
-      }
-    }
-  }, [activeFile?.path])
-
+export function ExcalidrawEditor() {
+  const activeFile = useStore(state => state.activeFile)
+  const openTabs = useStore(state => state.openTabs)
+  const presentationMode = useStore(state => state.presentationMode)
+  const preferenceTheme = useStore(state => state.preferences.theme)
+  const theme =
+    preferenceTheme === 'dark' ||
+    (preferenceTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      ? 'dark'
+      : 'light'
 
   if (!activeFile) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center text-gray-500 dark:text-gray-400 pointer-events-none">
+      <div className="editor-empty fixed inset-0 flex items-center justify-center pointer-events-none">
         <div className="text-center">
           <p className="text-lg mb-2">No file selected</p>
           <p className="text-sm">Select a file from the sidebar to start editing</p>
@@ -226,42 +238,17 @@ export function ExcalidrawEditor() {
     )
   }
 
-  // Use key prop to force remount when switching files
   return (
-    <div className="flex-1 min-h-0 relative" key={activeFile.path}>
-      {/* Loading overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 z-50 bg-white dark:bg-[#1e1e1e] flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-solid border-blue-600 border-r-transparent mb-2"></div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Loading...</p>
-          </div>
-        </div>
-      )}
-      
-      {/* Excalidraw component */}
-      <div className={`h-full ${isLoading ? 'invisible' : 'visible'}`}>
-        <Excalidraw
-          initialData={initialData}
-          excalidrawAPI={(api) => {
-            setExcalidrawAPI(api)
-            setGlobalExcalidrawAPI(api)
-          }}
-          onChange={handleChange}
-          theme={theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'}
-          viewModeEnabled={presentationMode}
-          UIOptions={{
-            canvasActions: {
-              loadScene: false,
-              saveToActiveFile: false,
-              saveAsImage: true,
-              export: {
-                saveFileToDisk: true,
-              },
-            },
-          }}
+    <div className="flex-1 min-h-0 relative">
+      {openTabs.map((tab) => (
+        <EditorPane
+          key={`${tab.path}:${tab.sceneVersion}`}
+          tab={tab}
+          isActive={activeFile.path === tab.path}
+          presentationMode={presentationMode}
+          theme={theme}
         />
-      </div>
+      ))}
     </div>
   )
 }

@@ -12,10 +12,12 @@ export function TabBar() {
   if (openTabs.length === 0) return null
 
   return (
-    <div className={cn(
-      "flex items-center bg-[#1e1e1e] border-b border-[#3a3a3a] overflow-x-auto shrink-0",
-      presentationMode && "bg-[#1e1e1e]/80 backdrop-blur-sm"
-    )}>
+    <div
+      className={cn(
+        'tab-bar flex items-center border-b overflow-x-auto shrink-0',
+        presentationMode && 'presentation'
+      )}
+    >
       {openTabs.map((tab) => {
         const isActive = activeFile?.path === tab.path
         const isModified = tab.modified
@@ -24,10 +26,8 @@ export function TabBar() {
           <div
             key={tab.path}
             className={cn(
-              "group flex items-center gap-1.5 px-3 py-1.5 text-sm border-r border-[#3a3a3a] cursor-pointer select-none min-w-0 max-w-[180px]",
-              isActive
-                ? "bg-[#2d2d2d] text-gray-100 border-t-2 border-t-blue-500"
-                : "bg-[#1e1e1e] text-gray-400 hover:bg-[#252525] hover:text-gray-200 border-t-2 border-t-transparent"
+              'tab-item group flex items-center gap-1.5 px-3 py-1.5 text-sm border-r border-t-2 border-t-transparent cursor-pointer select-none min-w-0 max-w-[180px]',
+              isActive && 'active'
             )}
             onClick={() => loadFile(tab)}
           >
@@ -35,15 +35,17 @@ export function TabBar() {
               {tab.name.replace('.excalidraw', '')}
             </span>
             {isModified && (
-              <span className="w-2 h-2 bg-orange-400 rounded-full shrink-0" />
+              <span className="modified-dot w-2 h-2 rounded-full shrink-0" />
             )}
             {!presentationMode && (
               <button
-                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[#444] rounded shrink-0 transition-opacity"
+                className="tab-close opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation()
                   closeTab(tab.path)
                 }}
+                title="Close tab"
+                aria-label={`Close ${tab.name}`}
               >
                 <X className="w-3 h-3" />
               </button>

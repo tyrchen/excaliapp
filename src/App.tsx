@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { Sidebar } from './components/Sidebar'
 import { ExcalidrawEditor } from './components/ExcalidrawEditor'
 import { TabBar } from './components/TabBar'
@@ -9,6 +10,12 @@ import { useStore } from './store/useStore'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useMenuHandler } from './hooks/useMenuHandler'
 import './index.css'
+
+function containsFilePath(nodes: ReturnType<typeof useStore.getState>['fileTree'], filePath: string): boolean {
+  return nodes.some((node) =>
+    node.path === filePath || (node.children ? containsFilePath(node.children, filePath) : false)
+  )
+}
 
 function App() {
   const { loadPreferences, loadDirectory, currentDirectory, sidebarVisible, isDirty, saveCurrentFile, presentationMode } = useStore()
@@ -30,10 +37,7 @@ function App() {
       
       // If the active file was deleted, clear it
       if (state.activeFile) {
-        const fileStillExists = state.fileTree.some(node => 
-          node.path === state.activeFile?.path || 
-          (node.children && node.children.some(child => child.path === state.activeFile?.path))
-        )
+        const fileStillExists = containsFilePath(state.fileTree, state.activeFile.path)
         
         if (!fileStillExists) {
           state.setActiveFile(null)
@@ -52,32 +56,22 @@ function App() {
   useEffect(() => {
     const unlisten = listen('check-unsaved-before-close', async () => {
       if (isDirty) {
-        const { confirm } = await import('@tauri-apps/plugin-dialog')
-        
-        // First ask if they want to save
-        const shouldSave = await confirm('Do you want to save your changes before closing?', {
+        const shouldSave = await ask('Do you want to save your changes before closing?', {
           title: 'Unsaved Changes',
           kind: 'warning',
           okLabel: 'Save & Close',
-          cancelLabel: 'Cancel'
+          cancelLabel: "Don't Save",
         })
         
-        if (shouldSave === null || shouldSave === undefined) {
-          // User cancelled, don't close
-          return
-        }
-        
         if (shouldSave) {
-          // Save before closing
           await saveCurrentFile()
           await invoke('force_close_app')
         } else {
-          // Ask for confirmation to close without saving
-          const reallyClose = await confirm('Are you sure you want to close without saving?', {
+          const reallyClose = await ask('Close without saving your changes?', {
             title: 'Confirm Close',
             kind: 'warning',
             okLabel: 'Close Without Saving',
-            cancelLabel: 'Cancel'
+            cancelLabel: 'Cancel',
           })
           
           if (reallyClose) {
@@ -102,7 +96,7 @@ function App() {
   useMenuHandler()
 
   return (
-    <div className={`h-screen flex bg-white dark:bg-[#1e1e1e] text-gray-900 dark:text-gray-100 overflow-hidden ${presentationMode ? 'cursor-none' : ''}`}>
+    <div className={`app-shell h-screen flex overflow-hidden ${presentationMode ? 'cursor-none' : ''}`}>
       {sidebarVisible && !presentationMode && <Sidebar />}
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar />

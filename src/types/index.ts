@@ -4,6 +4,19 @@ export interface ExcalidrawFile {
   modified: boolean
 }
 
+export interface CachedExcalidrawScene {
+  elements: readonly any[]
+  appState: Record<string, any>
+  files?: Record<string, any>
+}
+
+export interface OpenTab extends ExcalidrawFile {
+  cachedContent: string
+  contentHash: string
+  cachedScene: CachedExcalidrawScene
+  sceneVersion: number
+}
+
 export interface FileTreeNode {
   name: string
   path: string

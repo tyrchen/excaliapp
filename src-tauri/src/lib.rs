@@ -16,6 +16,12 @@ pub struct ExcalidrawFile {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FileContent {
+    pub content: String,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileTreeNode {
     pub name: String,
     pub path: String,
@@ -209,39 +215,61 @@ fn has_excalidraw_files(dir: &Path) -> Result<bool, String> {
 
 #[tauri::command]
 async fn read_file(file_path: String) -> Result<String, String> {
-    // Validate path to prevent traversal attacks
-    let path = Path::new(&file_path);
-    let validated_path = security::validate_path(path, None)?;
-    
-    // Validate it's an excalidraw file
-    security::validate_excalidraw_file(&validated_path)?;
-    
-    // Read and validate content
-    let content = fs::read_to_string(&validated_path)
-        .map_err(|e| e.to_string())?;
-    
-    // Validate the content is valid Excalidraw JSON
-    security::validate_excalidraw_content(&content)?;
-    
-    Ok(content)
+    Ok(read_excalidraw_file_with_hash(&file_path)?.content)
 }
 
 #[tauri::command]
-async fn save_file(file_path: String, content: String) -> Result<(), String> {
+async fn read_file_with_hash(file_path: String) -> Result<FileContent, String> {
+    read_excalidraw_file_with_hash(&file_path)
+}
+
+#[tauri::command]
+async fn hash_file_content(file_path: String) -> Result<String, String> {
+    let path = Path::new(&file_path);
+    let validated_path = security::validate_path(path, None)?;
+
+    security::validate_excalidraw_file(&validated_path)?;
+    let content = fs::read_to_string(&validated_path).map_err(|e| e.to_string())?;
+
+    Ok(blake3_hash(&content))
+}
+
+fn read_excalidraw_file_with_hash(file_path: &str) -> Result<FileContent, String> {
+    let path = Path::new(file_path);
+    let validated_path = security::validate_path(path, None)?;
+
+    security::validate_excalidraw_file(&validated_path)?;
+    let content = fs::read_to_string(&validated_path).map_err(|e| e.to_string())?;
+
+    security::validate_excalidraw_content(&content)?;
+
+    Ok(FileContent {
+        content_hash: blake3_hash(&content),
+        content,
+    })
+}
+
+fn blake3_hash(content: &str) -> String {
+    blake3::hash(content.as_bytes()).to_hex().to_string()
+}
+
+#[tauri::command]
+async fn save_file(file_path: String, content: String) -> Result<String, String> {
     // Validate path to prevent traversal attacks
     let path = Path::new(&file_path);
     let validated_path = security::validate_path(path, None)?;
-    
+
     // Validate it's an excalidraw file
     security::validate_excalidraw_file(&validated_path)?;
-    
+
     // Validate the content before saving
     security::validate_excalidraw_content(&content)?;
-    
-    fs::write(&validated_path, content)
-        .map_err(|e| e.to_string())?;
-    
-    Ok(())
+
+    fs::write(&validated_path, content).map_err(|e| e.to_string())?;
+
+    let saved_content = fs::read_to_string(&validated_path).map_err(|e| e.to_string())?;
+
+    Ok(blake3_hash(&saved_content))
 }
 
 #[tauri::command]
@@ -274,26 +302,19 @@ async fn save_file_as(app: AppHandle, content: String) -> Result<Option<String>,
 
 #[tauri::command]
 async fn create_new_file(directory: String, file_name: String) -> Result<String, String> {
-    println!(
-        "[create_new_file] Called with directory: {}, file_name: {}",
-        directory, file_name
-    );
-
     // Validate and canonicalize the directory path
     let dir_path = Path::new(&directory);
     let validated_dir = security::validate_path(dir_path, None)?;
-    
+
     if !validated_dir.is_dir() {
         return Err(format!("Path is not a directory: {}", directory));
     }
 
     // Safely join the filename to the directory
     let mut path = security::safe_path_join(&validated_dir, &file_name)?;
-    println!("[create_new_file] Initial path: {:?}", path);
 
     // Check if file already exists and suggest alternative
     if path.exists() {
-        println!("[create_new_file] File already exists, finding unique name");
         // Find a unique name by appending numbers
         let mut counter = 1;
 
@@ -313,10 +334,9 @@ async fn create_new_file(directory: String, file_name: String) -> Result<String,
 
         loop {
             let new_name = format!("{}-{}.excalidraw", base_stem, counter);
-            path = dir_path.join(&new_name);
+            path = validated_dir.join(&new_name);
 
             if !path.exists() {
-                println!("[create_new_file] Found unique name: {:?}", path);
                 break;
             }
             counter += 1;
@@ -342,40 +362,13 @@ async fn create_new_file(directory: String, file_name: String) -> Result<String,
     let content_str = serde_json::to_string_pretty(&default_content)
         .map_err(|e| format!("Failed to serialize content: {}", e))?;
 
-    println!("[create_new_file] Writing to path: {:?}", path);
-    match fs::write(&path, &content_str) {
-        Ok(_) => {
-            println!("[create_new_file] Successfully created file: {:?}", path);
+    fs::write(&path, &content_str).map_err(|e| format!("Failed to create file: {}", e))?;
 
-            // Verify the file was created
-            if !path.exists() {
-                eprintln!("[create_new_file] File doesn't exist after creation!");
-                return Err("File creation verification failed".to_string());
-            }
-
-            // Verify we can read it back
-            match fs::read_to_string(&path) {
-                Ok(read_content) => {
-                    println!(
-                        "[create_new_file] File verified, content length: {}",
-                        read_content.len()
-                    );
-                }
-                Err(e) => {
-                    eprintln!(
-                        "[create_new_file] Warning: Could not verify file content: {}",
-                        e
-                    );
-                }
-            }
-
-            Ok(path.to_string_lossy().to_string())
-        }
-        Err(e) => {
-            eprintln!("[create_new_file] Failed to create file: {}", e);
-            Err(format!("Failed to create file: {}", e))
-        }
+    if !path.exists() {
+        return Err("File creation verification failed".to_string());
     }
+
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -408,18 +401,18 @@ async fn rename_file(old_path: String, new_name: String) -> Result<String, Strin
     // Validate the old path
     let old_path = Path::new(&old_path);
     let validated_old = security::validate_path(old_path, None)?;
-    
+
     if !validated_old.exists() {
         return Err("File does not exist".to_string());
     }
-    
+
     security::validate_excalidraw_file(&validated_old)?;
 
     let parent = validated_old.parent().ok_or("Invalid file path")?;
-    
+
     // Safely create the new path
     let new_path = security::safe_path_join(parent, &new_name)?;
-    
+
     // Ensure the new path also has .excalidraw extension
     let new_path = if new_path.extension() != Some(std::ffi::OsStr::new("excalidraw")) {
         new_path.with_extension("excalidraw")
@@ -431,68 +424,9 @@ async fn rename_file(old_path: String, new_name: String) -> Result<String, Strin
         return Err("A file with that name already exists".to_string());
     }
 
-    // CRITICAL FIX: Read the content first, then write to new file, then delete old
-    // This prevents data loss if something goes wrong
-    println!("Renaming file from {:?} to {:?}", old_path, new_path);
+    fs::rename(&validated_old, &new_path).map_err(|e| format!("Failed to rename file: {}", e))?;
 
-    // Step 1: Read the original file content
-    let content = match fs::read_to_string(old_path) {
-        Ok(content) => {
-            println!(
-                "Successfully read original file, content length: {}",
-                content.len()
-            );
-            content
-        }
-        Err(e) => {
-            eprintln!("Failed to read original file: {}", e);
-            return Err(format!("Failed to read original file: {}", e));
-        }
-    };
-
-    // Step 2: Write content to the new file
-    match fs::write(&new_path, &content) {
-        Ok(_) => {
-            println!("Successfully wrote content to new file");
-        }
-        Err(e) => {
-            eprintln!("Failed to write to new file: {}", e);
-            return Err(format!("Failed to create new file: {}", e));
-        }
-    }
-
-    // Step 3: Verify the new file exists and has content
-    match fs::read_to_string(&new_path) {
-        Ok(new_content) => {
-            if new_content != content {
-                eprintln!("Warning: New file content doesn't match original!");
-                // Delete the corrupted new file
-                let _ = fs::remove_file(&new_path);
-                return Err("File content verification failed".to_string());
-            }
-            println!("New file verified successfully");
-        }
-        Err(e) => {
-            eprintln!("Failed to verify new file: {}", e);
-            // Delete the potentially corrupted new file
-            let _ = fs::remove_file(&new_path);
-            return Err(format!("Failed to verify new file: {}", e));
-        }
-    }
-
-    // Step 4: Only delete the original file after successful verification
-    match fs::remove_file(old_path) {
-        Ok(_) => {
-            println!("Successfully deleted original file");
-            Ok(new_path.to_string_lossy().to_string())
-        }
-        Err(e) => {
-            eprintln!("Warning: Failed to delete original file: {}", e);
-            // The rename was successful, but cleanup failed
-            // Return success but log the warning
-            Ok(new_path.to_string_lossy().to_string())
-        }
-    }
+    Ok(new_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -500,17 +434,16 @@ async fn delete_file(file_path: String) -> Result<(), String> {
     // Validate path to prevent traversal attacks
     let path = Path::new(&file_path);
     let validated_path = security::validate_path(path, None)?;
-    
+
     if !validated_path.exists() {
         return Err("File does not exist".to_string());
     }
-    
+
     // Ensure we're only deleting excalidraw files
     security::validate_excalidraw_file(&validated_path)?;
 
-    fs::remove_file(&validated_path)
-        .map_err(|e| e.to_string())?;
-    
+    fs::remove_file(&validated_path).map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -584,27 +517,29 @@ async fn watch_directory(
         .map_err(|e| e.to_string())?;
 
     // Spawn a thread to handle file system events
-    std::thread::spawn(move || loop {
-        match rx.recv() {
-            Ok(Ok(Event {
-                kind: EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(_),
-                paths,
-                ..
-            })) => {
-                for path in paths {
-                    if let Some(extension) = path.extension() {
-                        if extension == "excalidraw" {
-                            let _ = app_handle.emit("file-system-change", &path);
+    std::thread::spawn(move || {
+        loop {
+            match rx.recv() {
+                Ok(Ok(Event {
+                    kind: EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(_),
+                    paths,
+                    ..
+                })) => {
+                    for path in paths {
+                        if let Some(extension) = path.extension() {
+                            if extension == "excalidraw" {
+                                let _ = app_handle.emit("file-system-change", &path);
+                            }
                         }
                     }
                 }
+                Ok(Err(e)) => eprintln!("Watch error: {:?}", e),
+                Err(e) => {
+                    eprintln!("Watch channel error: {:?}", e);
+                    break;
+                }
+                _ => {}
             }
-            Ok(Err(e)) => eprintln!("Watch error: {:?}", e),
-            Err(e) => {
-                eprintln!("Watch channel error: {:?}", e);
-                break;
-            }
-            _ => {}
         }
     });
 
@@ -616,7 +551,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
@@ -653,7 +587,7 @@ pub fn run() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     // Prevent default close
                     api.prevent_close();
-                    
+
                     // Emit event to frontend to check for unsaved changes
                     let _ = window_clone.emit("check-unsaved-before-close", ());
                 }
@@ -666,6 +600,8 @@ pub fn run() {
             list_excalidraw_files,
             get_file_tree,
             read_file,
+            read_file_with_hash,
+            hash_file_content,
             save_file,
             save_file_as,
             create_new_file,

@@ -51,12 +51,12 @@ export function Sidebar() {
   }
 
   return (
-    <div className="w-[280px] h-full bg-gray-50 dark:bg-[#252525] border-r border-gray-200 dark:border-[#3a3a3a] dark:text-gray-200 flex flex-col">
+    <div className="sidebar-panel w-[280px] h-full border-r flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
+      <div className="sidebar-section p-4 border-b">
         <button
           onClick={handleSelectDirectory}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-[#333] hover:text-gray-900 dark:hover:text-white transition-colors"
+          className="sidebar-action w-full flex items-center gap-2 px-3 py-2 rounded-md transition-colors"
         >
           <FolderOpen className="w-4 h-4" />
           <span className="text-sm font-medium truncate">
@@ -66,7 +66,7 @@ export function Sidebar() {
         
         <button
           onClick={handleNewFile}
-          className="w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-[#333] hover:text-gray-900 dark:hover:text-white transition-colors"
+          className="sidebar-action w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-md transition-colors"
           title={!currentDirectory ? 'Select a directory first' : 'Create a new Excalidraw file'}
         >
           <Plus className="w-4 h-4" />
@@ -78,7 +78,7 @@ export function Sidebar() {
       <ScrollArea className="flex-1 overflow-y-auto">
         <div className="p-2">
           {fileTree.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+            <div className="sidebar-muted text-sm text-center py-8">
               {currentDirectory ? 'No .excalidraw files found' : 'No directory selected'}
             </div>
           ) : (
@@ -92,8 +92,8 @@ export function Sidebar() {
       </ScrollArea>
 
       {/* Footer */}
-      <div className="p-3 border-t border-gray-200 dark:border-[#3a3a3a]">
-        <div className="text-xs text-gray-500 dark:text-gray-400">
+      <div className="sidebar-section p-3 border-t">
+        <div className="sidebar-muted text-xs">
           {countFilesInTree(fileTree)} file{countFilesInTree(fileTree) !== 1 ? 's' : ''}
         </div>
       </div>

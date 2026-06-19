@@ -8,6 +8,195 @@ html, body, #root {
   overflow: hidden;
 }
 
+:root {
+  color-scheme: light;
+  --app-bg: #f7f9fc;
+  --app-panel: #f3f6fa;
+  --app-panel-strong: #e9eef6;
+  --app-surface: #ffffff;
+  --app-surface-hover: #eaf1fb;
+  --app-border: #d8e1ec;
+  --app-border-strong: #c8d4e2;
+  --app-text: #111827;
+  --app-text-muted: #5f6b7a;
+  --app-text-subtle: #7a8796;
+  --app-accent: #2563eb;
+  --app-accent-soft: #e7f0ff;
+  --app-accent-text: #174ea6;
+  --app-danger: #dc2626;
+  --app-modified: #f59e0b;
+  --app-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.dark {
+  color-scheme: dark;
+  --app-bg: #181a1f;
+  --app-panel: #20232a;
+  --app-panel-strong: #272b34;
+  --app-surface: #242832;
+  --app-surface-hover: #2c3240;
+  --app-border: #333946;
+  --app-border-strong: #424a5a;
+  --app-text: #eef2f7;
+  --app-text-muted: #a9b2c0;
+  --app-text-subtle: #828c9a;
+  --app-accent: #7aa2ff;
+  --app-accent-soft: #1f3154;
+  --app-accent-text: #c7d8ff;
+  --app-danger: #fb7185;
+  --app-modified: #fbbf24;
+  --app-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+.app-shell {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.sidebar-panel {
+  background: var(--app-panel);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+.sidebar-section {
+  border-color: var(--app-border);
+}
+
+.sidebar-action {
+  color: var(--app-text);
+}
+
+.sidebar-action:hover {
+  background: var(--app-surface-hover);
+}
+
+.sidebar-muted {
+  color: var(--app-text-muted);
+}
+
+.tab-bar {
+  background: var(--app-panel);
+  border-color: var(--app-border);
+}
+
+.tab-bar.presentation {
+  background: color-mix(in srgb, var(--app-panel) 84%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.tab-item {
+  color: var(--app-text-muted);
+  border-color: var(--app-border);
+}
+
+.tab-item:hover {
+  background: var(--app-surface-hover);
+  color: var(--app-text);
+}
+
+.tab-item.active {
+  background: var(--app-surface);
+  color: var(--app-text);
+  border-top-color: var(--app-accent);
+}
+
+.tab-close:hover {
+  background: var(--app-panel-strong);
+}
+
+.tree-node {
+  color: var(--app-text);
+}
+
+.tree-node:hover {
+  background: var(--app-surface-hover);
+}
+
+.tree-node.active {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-text);
+}
+
+.tree-icon {
+  color: var(--app-text-muted);
+}
+
+.tree-folder-icon {
+  color: var(--app-accent);
+}
+
+.tree-menu {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  box-shadow: var(--app-shadow);
+}
+
+.tree-menu-item {
+  color: var(--app-text);
+}
+
+.tree-menu-item:hover {
+  background: var(--app-surface-hover);
+}
+
+.tree-menu-danger {
+  color: var(--app-danger);
+}
+
+.tree-input {
+  background: var(--app-surface);
+  border-color: var(--app-accent);
+  color: var(--app-text);
+}
+
+.modified-dot {
+  background: var(--app-modified);
+}
+
+.editor-empty {
+  color: var(--app-text-muted);
+}
+
+.editor-loading {
+  background: var(--app-bg);
+  color: var(--app-text-muted);
+}
+
+.editor-spinner {
+  border-color: var(--app-accent);
+  border-right-color: transparent;
+}
+
+.error-card {
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+  color: var(--app-text);
+}
+
+.error-details {
+  background: var(--app-panel);
+  color: var(--app-text-muted);
+}
+
+.error-primary-button {
+  background: var(--app-accent);
+  color: #ffffff;
+}
+
+.error-primary-button:hover {
+  filter: brightness(0.94);
+}
+
+.error-secondary-button {
+  background: var(--app-panel-strong);
+  color: var(--app-text);
+}
+
+.error-secondary-button:hover {
+  background: var(--app-surface-hover);
+}
+
 /* Custom scrollbar styles */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;

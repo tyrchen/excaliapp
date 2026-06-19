@@ -3,71 +3,73 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - "v*"
 
 permissions:
   contents: write
 
-jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-          - platform: windows-latest
-            target: x86_64-pc-windows-msvc
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
-    runs-on: ${{ matrix.platform }}
+jobs:
+  github-release:
+    name: Build DMG and Create GitHub Release
+    runs-on: macos-15
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/src-tauri/target
+      RELEASE_DIR: dist/github-release
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v5
 
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libssl-dev
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
-      - name: Setup Rust
+      - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: aarch64-apple-darwin
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: src-tauri -> target
 
-      - name: Install frontend dependencies
-        run: npm install
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Build Apple Silicon DMG
+        run: npm run tauri -- build --bundles dmg --target aarch64-apple-darwin
+
+      - name: Stage release asset
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$RELEASE_DIR"
+          dmg_path="$(find "$CARGO_TARGET_DIR/aarch64-apple-darwin/release/bundle/dmg" -maxdepth 1 -name "*.dmg" -print -quit)"
+          test -n "$dmg_path"
+
+          release_dmg="$RELEASE_DIR/ExcaliApp-${GITHUB_REF_NAME}-macos-arm64.dmg"
+          cp "$dmg_path" "$release_dmg"
+          echo "RELEASE_DMG=$release_dmg" >> "$GITHUB_ENV"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v7
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: ExcaliApp ${{ github.ref_name }}
-          releaseBody: |
-            See the [changelog](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}) for details.
-          releaseDraft: true
-          prerelease: false
-          args: --target ${{ matrix.target }}
+          name: excaliapp-macos-arm64-dmg
+          path: ${{ env.RELEASE_DMG }}
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: ${{ env.RELEASE_DMG }}
+          generate_release_notes: true

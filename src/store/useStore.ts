@@ -1,8 +1,89 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
-import { ExcalidrawFile, FileTreeNode, Preferences } from '../types'
+import { CachedExcalidrawScene, ExcalidrawFile, FileTreeNode, OpenTab, Preferences } from '../types'
 import { convertPreferencesFromRust, convertPreferencesToRust } from '../lib/preferences'
 import { ask } from '@tauri-apps/plugin-dialog'
+
+type UnsavedChangesDecision = 'save' | 'discard' | 'cancel'
+type FileLoadSource = 'cache' | 'disk' | null
+
+interface FileContentResult {
+  content: string
+  content_hash: string
+}
+
+function parseSceneFromContent(content: string): CachedExcalidrawScene {
+  const data = JSON.parse(content)
+
+  return {
+    elements: data.elements || [],
+    appState: data.appState || {},
+    files: data.files || {},
+  }
+}
+
+function toOpenTab(
+  file: ExcalidrawFile,
+  content: string,
+  contentHash: string,
+  sceneVersion = 0
+): OpenTab {
+  return {
+    ...file,
+    cachedContent: content,
+    contentHash,
+    cachedScene: parseSceneFromContent(content),
+    sceneVersion,
+  }
+}
+
+function toExcalidrawFile(tab: OpenTab): ExcalidrawFile {
+  return {
+    name: tab.name,
+    path: tab.path,
+    modified: tab.modified,
+  }
+}
+
+async function readOpenTabFromDisk(file: ExcalidrawFile, sceneVersion = 0): Promise<OpenTab> {
+  const { content, content_hash: contentHash } = await invoke<FileContentResult>(
+    'read_file_with_hash',
+    { filePath: file.path }
+  )
+
+  return toOpenTab({ ...file, modified: false }, content, contentHash, sceneVersion)
+}
+
+async function confirmUnsavedChanges(
+  fileName: string,
+  actionDescription: string
+): Promise<UnsavedChangesDecision> {
+  const shouldSave = await ask(
+    `Do you want to save changes to "${fileName}" before ${actionDescription}?`,
+    {
+      title: 'Unsaved Changes',
+      kind: 'warning',
+      okLabel: 'Save',
+      cancelLabel: "Don't Save",
+    }
+  )
+
+  if (shouldSave) {
+    return 'save'
+  }
+
+  const shouldDiscard = await ask(
+    `Discard unsaved changes to "${fileName}"?`,
+    {
+      title: 'Discard Unsaved Changes',
+      kind: 'warning',
+      okLabel: "Don't Save",
+      cancelLabel: 'Cancel',
+    }
+  )
+
+  return shouldDiscard ? 'discard' : 'cancel'
+}
 
 interface AppStore {
   // State
@@ -11,11 +92,12 @@ interface AppStore {
   fileTree: FileTreeNode[]
   activeFile: ExcalidrawFile | null
   fileContent: string | null
+  activeFileLoadSource: FileLoadSource
   preferences: Preferences
   sidebarVisible: boolean
   isDirty: boolean
   presentationMode: boolean
-  openTabs: ExcalidrawFile[]
+  openTabs: OpenTab[]
 
   // Actions
   setCurrentDirectory: (dir: string | null) => void
@@ -23,6 +105,7 @@ interface AppStore {
   setFileTree: (tree: FileTreeNode[]) => void
   setActiveFile: (file: ExcalidrawFile | null) => void
   setFileContent: (content: string | null) => void
+  updateTabScene: (filePath: string, scene: CachedExcalidrawScene) => void
   setPreferences: (prefs: Preferences) => void
   setSidebarVisible: (visible: boolean) => void
   setIsDirty: (dirty: boolean) => void
@@ -53,6 +136,7 @@ export const useStore = create<AppStore>((set, get) => ({
   fileTree: [],
   activeFile: null,
   fileContent: null,
+  activeFileLoadSource: null,
   preferences: {
     lastDirectory: null,
     recentDirectories: [],
@@ -70,7 +154,22 @@ export const useStore = create<AppStore>((set, get) => ({
   setFiles: (files) => set({ files }),
   setFileTree: (tree) => set({ fileTree: tree }),
   setActiveFile: (file) => set({ activeFile: file }),
-  setFileContent: (content) => set({ fileContent: content }),
+  setFileContent: (content) => set((state) => ({
+    fileContent: content,
+    openTabs:
+      content && state.activeFile
+        ? state.openTabs.map((tab) =>
+            tab.path === state.activeFile?.path
+              ? { ...tab, cachedContent: content }
+              : tab
+          )
+        : state.openTabs,
+  })),
+  updateTabScene: (filePath, scene) => set((state) => ({
+    openTabs: state.openTabs.map((tab) =>
+      tab.path === filePath ? { ...tab, cachedScene: scene } : tab
+    ),
+  })),
   setPreferences: (prefs) => set({ preferences: prefs }),
   setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
   setIsDirty: (dirty) => set({ isDirty: dirty }),
@@ -107,10 +206,17 @@ export const useStore = create<AppStore>((set, get) => ({
   // Load directory and list files
   loadDirectory: async (dir) => {
     try {
+      const state = get()
       const [files, fileTree] = await Promise.all([
         invoke<ExcalidrawFile[]>('list_excalidraw_files', { directory: dir }),
         invoke<FileTreeNode[]>('get_file_tree', { directory: dir })
       ])
+
+      if (state.presentationMode && state.preferences.showDecorations) {
+        await invoke('set_menu_visible', { visible: true }).catch((error) => {
+          console.error('Failed to restore menu before loading directory:', error)
+        })
+      }
       
       set({
         currentDirectory: dir,
@@ -118,6 +224,10 @@ export const useStore = create<AppStore>((set, get) => ({
         fileTree,
         activeFile: null,
         fileContent: null,
+        activeFileLoadSource: null,
+        isDirty: false,
+        presentationMode: false,
+        openTabs: [],
       })
       
       // Update preferences with recent directory
@@ -172,43 +282,76 @@ export const useStore = create<AppStore>((set, get) => ({
     
     // Check if current file has unsaved changes
     if (state.isDirty && state.activeFile) {
-      const response = await ask(
-        `Do you want to save changes to "${state.activeFile.name}" before switching files?`,
-        {
-          title: 'Unsaved Changes',
-          kind: 'warning',
-          okLabel: 'Save',
-          cancelLabel: "Don't Save"
-        }
-      )
+      const decision = await confirmUnsavedChanges(state.activeFile.name, 'switching files')
       
-      if (response === true) {
-        // User chose to save
+      if (decision === 'save') {
         await state.saveCurrentFile()
-      } else if (response === null) {
-        // User cancelled - don't switch files
+      } else if (decision === 'cancel') {
         return
+      } else {
+        try {
+          const existingTab = get().openTabs.find((tab) => tab.path === state.activeFile?.path)
+          const cleanTab = await readOpenTabFromDisk(
+            state.activeFile,
+            (existingTab?.sceneVersion || 0) + 1
+          )
+
+          set((currentState) => ({
+            activeFile: toExcalidrawFile(cleanTab),
+            fileContent: cleanTab.cachedContent,
+            activeFileLoadSource: 'disk',
+            isDirty: false,
+            openTabs: currentState.openTabs.map((tab) =>
+              tab.path === cleanTab.path ? cleanTab : tab
+            ),
+          }))
+          state.markFileAsModified(cleanTab.path, false)
+          state.markTreeNodeAsModified(cleanTab.path, false)
+        } catch (error) {
+          console.error('Failed to discard unsaved changes:', error)
+          alert(`Failed to discard unsaved changes: ${error}`)
+          return
+        }
       }
-      // If response is false, user chose "Don't Save" - continue without saving
     }
     
     try {
-      const content = await invoke<string>('read_file', {
-        filePath: file.path,
-      })
-      
-      // Add to openTabs if not already there
-      const existingTab = get().openTabs.find(t => t.path === file.path)
-      const newTabs = existingTab ? get().openTabs : [...get().openTabs, file]
+      const latestState = get()
+      const existingTab = latestState.openTabs.find(t => t.path === file.path)
+
+      if (existingTab) {
+        const diskHash = await invoke<string>('hash_file_content', {
+          filePath: file.path,
+        })
+
+        if (diskHash === existingTab.contentHash) {
+          set({
+            activeFile: toExcalidrawFile(existingTab),
+            fileContent: existingTab.cachedContent,
+            activeFileLoadSource: 'cache',
+            isDirty: existingTab.modified,
+          })
+          return
+        }
+      }
+
+      const updatedTab = await readOpenTabFromDisk(
+        file,
+        existingTab ? existingTab.sceneVersion + 1 : 0
+      )
+      const updatedFile = toExcalidrawFile(updatedTab)
+      const openTabs = existingTab
+        ? get().openTabs.map((tab) => (tab.path === file.path ? updatedTab : tab))
+        : [...get().openTabs, updatedTab]
 
       set({
-        activeFile: file,
-        fileContent: content,
+        activeFile: updatedFile,
+        fileContent: updatedTab.cachedContent,
+        activeFileLoadSource: 'disk',
         isDirty: false,
-        openTabs: newTabs,
+        openTabs,
       })
 
-      // Clear modified state for this file
       state.markFileAsModified(file.path, false)
       state.markTreeNodeAsModified(file.path, false)
     } catch (error) {
@@ -223,6 +366,7 @@ export const useStore = create<AppStore>((set, get) => ({
           set({
             activeFile: null,
             fileContent: null,
+            activeFileLoadSource: null,
             isDirty: false,
           })
         }
@@ -241,85 +385,12 @@ export const useStore = create<AppStore>((set, get) => ({
   // Load file from tree node
   loadFileFromTree: async (node) => {
     if (node.is_directory) return
-    
-    const state = get()
-    
-    // If clicking the same file that's already active, do nothing
-    if (state.activeFile?.path === node.path) {
-      return
-    }
-    
-    // Check if current file has unsaved changes
-    if (state.isDirty && state.activeFile) {
-      const response = await ask(
-        `Do you want to save changes to "${state.activeFile.name}" before switching files?`,
-        {
-          title: 'Unsaved Changes',
-          kind: 'warning',
-          okLabel: 'Save',
-          cancelLabel: "Don't Save"
-        }
-      )
-      
-      if (response === true) {
-        // User chose to save
-        await state.saveCurrentFile()
-      } else if (response === null) {
-        // User cancelled - don't switch files
-        return
-      }
-      // If response is false, user chose "Don't Save" - continue without saving
-    }
-    
-    try {
-      const content = await invoke<string>('read_file', {
-        filePath: node.path,
-      })
-      
-      // Convert tree node to ExcalidrawFile
-      const file: ExcalidrawFile = {
-        name: node.name,
-        path: node.path,
-        modified: node.modified,
-      }
 
-      // Add to openTabs if not already there
-      const existingTab = get().openTabs.find(t => t.path === file.path)
-      const newTabs = existingTab ? get().openTabs : [...get().openTabs, file]
-
-      set({
-        activeFile: file,
-        fileContent: content,
-        openTabs: newTabs,
-        // Don't change isDirty here - it will be set to false by ExcalidrawEditor after loading
-      })
-      
-      // Don't clear modified state here either - let the editor handle it
-    } catch (error) {
-      console.error('Failed to load file:', error)
-      
-      // If file doesn't exist, refresh the tree and show error
-      if (String(error).includes('No such file') || String(error).includes('not found')) {
-        alert(`File not found: ${node.name}\n\nThe file may have been deleted or moved. Refreshing file list...`)
-        
-        // Clear active file if it's the one that failed
-        if (state.activeFile?.path === node.path) {
-          set({
-            activeFile: null,
-            fileContent: null,
-            isDirty: false,
-          })
-        }
-        
-        // Refresh the file tree
-        if (state.currentDirectory) {
-          await state.loadFileTree(state.currentDirectory)
-        }
-      } else {
-        // Other errors
-        alert(`Failed to load file: ${error}`)
-      }
-    }
+    await get().loadFile({
+      name: node.name,
+      path: node.path,
+      modified: node.modified,
+    })
   },
 
   // Save current file
@@ -328,19 +399,16 @@ export const useStore = create<AppStore>((set, get) => ({
     const { activeFile, fileContent, isDirty } = state
     
     if (!activeFile) {
-      console.log('[saveCurrentFile] No active file to save')
       return
     }
     
     // Only save if file is dirty
     if (!isDirty && !content) {
-      console.log('[saveCurrentFile] File is not dirty, skipping save')
       return
     }
     
     const contentToSave = content || fileContent
     if (!contentToSave) {
-      console.log('[saveCurrentFile] No content to save')
       return
     }
     
@@ -355,7 +423,6 @@ export const useStore = create<AppStore>((set, get) => ({
       // Don't save if it's an empty Excalidraw file (no elements)
       if (Array.isArray(parsed.elements) && parsed.elements.length === 0 && !content) {
         // Only skip if this is an auto-save (no explicit content provided)
-        console.log('[saveCurrentFile] Skipping save of empty file (auto-save)')
         return
       }
     } catch (jsonError) {
@@ -364,16 +431,27 @@ export const useStore = create<AppStore>((set, get) => ({
     }
     
     try {
-      console.log('[saveCurrentFile] Saving file:', activeFile.path)
-      await invoke('save_file', {
+      const contentHash = await invoke<string>('save_file', {
         filePath: activeFile.path,
         content: contentToSave,
       })
       
       state.markFileAsModified(activeFile.path, false)
       state.markTreeNodeAsModified(activeFile.path, false)
-      set({ isDirty: false })
-      console.log('[saveCurrentFile] File saved successfully')
+      set((currentState) => ({
+        isDirty: false,
+        activeFile: { ...activeFile, modified: false },
+        openTabs: currentState.openTabs.map((tab) =>
+          tab.path === activeFile.path
+            ? {
+                ...tab,
+                cachedContent: contentToSave,
+                contentHash,
+                modified: false,
+              }
+            : tab
+        ),
+      }))
     } catch (error) {
       console.error('[saveCurrentFile] Failed to save file:', error)
       alert(`Failed to save file: ${error}`)
@@ -387,24 +465,37 @@ export const useStore = create<AppStore>((set, get) => ({
     
     // Check if current file has unsaved changes
     if (state.isDirty && state.activeFile) {
-      const response = await ask(
-        `Do you want to save changes to "${state.activeFile.name}" before creating a new file?`,
-        {
-          title: 'Unsaved Changes',
-          kind: 'warning',
-          okLabel: 'Save',
-          cancelLabel: "Don't Save"
-        }
-      )
+      const decision = await confirmUnsavedChanges(state.activeFile.name, 'creating a new file')
       
-      if (response === true) {
-        // User chose to save
+      if (decision === 'save') {
         await state.saveCurrentFile()
-      } else if (response === null) {
-        // User cancelled - don't create new file
+      } else if (decision === 'cancel') {
         return
+      } else {
+        try {
+          const existingTab = get().openTabs.find((tab) => tab.path === state.activeFile?.path)
+          const cleanTab = await readOpenTabFromDisk(
+            state.activeFile,
+            (existingTab?.sceneVersion || 0) + 1
+          )
+
+          set((currentState) => ({
+            activeFile: toExcalidrawFile(cleanTab),
+            fileContent: cleanTab.cachedContent,
+            activeFileLoadSource: 'disk',
+            isDirty: false,
+            openTabs: currentState.openTabs.map((tab) =>
+              tab.path === cleanTab.path ? cleanTab : tab
+            ),
+          }))
+          state.markFileAsModified(cleanTab.path, false)
+          state.markTreeNodeAsModified(cleanTab.path, false)
+        } catch (error) {
+          console.error('Failed to discard unsaved changes:', error)
+          alert(`Failed to discard unsaved changes: ${error}`)
+          return
+        }
       }
-      // If response is false, user chose "Don't Save" - continue without saving
     }
     
     // Check if a directory is selected
@@ -467,18 +558,19 @@ export const useStore = create<AppStore>((set, get) => ({
       })
       
       const state = get()
-      
-      // Update the active file if it was renamed
-      if (state.activeFile?.path === oldPath) {
-        set({
-          activeFile: {
-            ...state.activeFile,
-            name: finalName,
-            path: newPath,
-          },
-        })
+      const renamedFile = {
+        name: finalName,
+        path: newPath,
+        modified: state.activeFile?.path === oldPath ? state.isDirty : false,
       }
-      
+
+      set({
+        activeFile: state.activeFile?.path === oldPath ? renamedFile : state.activeFile,
+        openTabs: state.openTabs.map((tab) =>
+          tab.path === oldPath ? { ...tab, name: finalName, path: newPath } : tab
+        ),
+      })
+
       // Reload the file tree
       if (state.currentDirectory) {
         await state.loadFileTree(state.currentDirectory)
@@ -492,38 +584,31 @@ export const useStore = create<AppStore>((set, get) => ({
   // Delete file
   // NOTE: Confirmation should be handled by the caller
   deleteFile: async (filePath) => {
-    console.log('[deleteFile] Starting deletion for:', filePath)
     try {
-      // Proceed with deletion directly (confirmation handled by caller)
-      console.log('[deleteFile] Calling Rust delete_file command...')
-      const result = await invoke('delete_file', { filePath })
-      console.log('[deleteFile] Rust command completed, result:', result)
-      
+      await invoke('delete_file', { filePath })
       const state = get()
+      const openTabs = state.openTabs.filter((tab) => tab.path !== filePath)
       
-      // If the deleted file was active, clear it
       if (state.activeFile?.path === filePath) {
-        console.log('[deleteFile] Clearing active file')
         set({
+          openTabs,
           activeFile: null,
           fileContent: null,
+          activeFileLoadSource: null,
           isDirty: false,
         })
+      } else {
+        set({ openTabs })
       }
       
-      // Reload the file tree
       if (state.currentDirectory) {
-        console.log('[deleteFile] Reloading file tree for:', state.currentDirectory)
         await state.loadFileTree(state.currentDirectory)
       }
       
-      console.log('[deleteFile] File deleted successfully:', filePath)
-      return true // Return success
+      return true
     } catch (error) {
       console.error('[deleteFile] Failed to delete file:', error)
-      console.error('[deleteFile] Error details:', JSON.stringify(error))
-      alert(`Failed to delete file: ${error}`)
-      throw error // Re-throw so caller knows deletion failed
+      throw error
     }
   },
 
@@ -532,7 +617,6 @@ export const useStore = create<AppStore>((set, get) => ({
     try {
       // The Rust backend returns snake_case fields
       const prefs = await invoke<any>('get_preferences')
-      console.log('Loaded preferences from backend:', prefs)
       
       // Convert snake_case from Rust to camelCase for TypeScript
       const safePrefs = convertPreferencesFromRust(prefs)
@@ -565,7 +649,6 @@ export const useStore = create<AppStore>((set, get) => ({
       
       // Auto-load last directory if it exists
       if (safePrefs.lastDirectory) {
-        console.log('Auto-loading last directory:', safePrefs.lastDirectory)
         try {
           await get().loadDirectory(safePrefs.lastDirectory)
         } catch (dirError) {
@@ -624,12 +707,15 @@ export const useStore = create<AppStore>((set, get) => ({
     set({ presentationMode: entering })
 
     if (entering) {
-      // Hide menu when entering presentation mode
-      invoke('set_menu_visible', { visible: false })
+      invoke('set_menu_visible', { visible: false }).catch((error) => {
+        console.error('Failed to hide menu for presentation mode:', error)
+        set({ presentationMode: false })
+      })
     } else {
-      // Show menu when exiting, respecting decorations preference
       if (state.preferences.showDecorations) {
-        invoke('set_menu_visible', { visible: true })
+        invoke('set_menu_visible', { visible: true }).catch((error) => {
+          console.error('Failed to restore menu after presentation mode:', error)
+        })
       }
     }
   },
@@ -639,9 +725,15 @@ export const useStore = create<AppStore>((set, get) => ({
     const state = get()
     const newVisible = !state.preferences.showDecorations
     invoke('set_decorations', { visible: newVisible })
-    const newPrefs = { ...state.preferences, showDecorations: newVisible }
-    set({ preferences: newPrefs })
-    get().savePreferences()
+      .then(() => {
+        const newPrefs = { ...state.preferences, showDecorations: newVisible }
+        set({ preferences: newPrefs })
+        get().savePreferences()
+      })
+      .catch((error) => {
+        console.error('Failed to toggle window decorations:', error)
+        alert(`Failed to toggle window decorations: ${error}`)
+      })
   },
 
   // Close tab
@@ -654,20 +746,36 @@ export const useStore = create<AppStore>((set, get) => ({
 
     // Check for unsaved changes if this is the active file
     if (state.activeFile?.path === filePath && state.isDirty) {
-      const response = await ask(
-        `Do you want to save changes to "${tab.name}" before closing?`,
-        {
-          title: 'Unsaved Changes',
-          kind: 'warning',
-          okLabel: 'Save',
-          cancelLabel: "Don't Save"
-        }
-      )
+      const decision = await confirmUnsavedChanges(tab.name, 'closing')
 
-      if (response === true) {
+      if (decision === 'save') {
         await state.saveCurrentFile()
-      } else if (response === null) {
+      } else if (decision === 'cancel') {
         return
+      } else {
+        try {
+          const existingTab = get().openTabs.find((tab) => tab.path === state.activeFile?.path)
+          const cleanTab = await readOpenTabFromDisk(
+            state.activeFile,
+            (existingTab?.sceneVersion || 0) + 1
+          )
+
+          set((currentState) => ({
+            activeFile: toExcalidrawFile(cleanTab),
+            fileContent: cleanTab.cachedContent,
+            activeFileLoadSource: 'disk',
+            isDirty: false,
+            openTabs: currentState.openTabs.map((tab) =>
+              tab.path === cleanTab.path ? cleanTab : tab
+            ),
+          }))
+          state.markFileAsModified(cleanTab.path, false)
+          state.markTreeNodeAsModified(cleanTab.path, false)
+        } catch (error) {
+          console.error('Failed to discard unsaved changes:', error)
+          alert(`Failed to discard unsaved changes: ${error}`)
+          return
+        }
       }
     }
 
@@ -685,6 +793,7 @@ export const useStore = create<AppStore>((set, get) => ({
           openTabs: newTabs,
           activeFile: null,
           fileContent: null,
+          activeFileLoadSource: null,
           isDirty: false,
         })
       }

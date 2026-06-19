@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use tauri::{
+    AppHandle, Emitter, Manager, Runtime,
     menu::{
         AboutMetadataBuilder, Menu, MenuBuilder, MenuId, MenuItemBuilder, PredefinedMenuItem,
         Submenu, SubmenuBuilder,
     },
-    AppHandle, Emitter, Manager, Runtime,
 };
 
 use crate::AppState;
@@ -89,7 +89,6 @@ fn create_recent_directories_menu<R: Runtime>(
 
     Ok(recent_menu)
 }
-
 
 fn create_edit_menu<R: Runtime>(
     app: &AppHandle<R>,

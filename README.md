@@ -27,12 +27,10 @@ A free, open-source desktop application for managing and editing local Excalidra
 
 #### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or higher)
+- [Node.js](https://nodejs.org/) 24
 - [Rust](https://www.rust-lang.org/) (latest stable)
-- Platform-specific development tools:
-  - **Windows**: Visual Studio Build Tools
-  - **macOS**: Xcode Command Line Tools
-  - **Linux**: `build-essential`, `libwebkit2gtk-4.1-dev`, `libssl-dev`
+- macOS on Apple Silicon
+- Xcode Command Line Tools
 
 #### Build Steps
 
@@ -42,7 +40,7 @@ git clone https://github.com/tyrchen/excaliapp.git
 cd excaliapp
 
 # Install dependencies
-npm install
+npm ci
 
 # Development mode with hot reload
 npm run tauri dev
@@ -82,20 +80,20 @@ The built application will be in `src-tauri/target/release/bundle/`
 
 ### Keyboard Shortcuts
 
-| Action                    | Windows/Linux    | macOS            |
-| ------------------------- | ---------------- | ---------------- |
-| New File                  | Ctrl+N           | Cmd+N            |
-| Open Directory            | Ctrl+O           | Cmd+O            |
-| Save                      | Ctrl+S           | Cmd+S            |
-| Save As                   | Ctrl+Shift+S     | Cmd+Shift+S      |
-| Toggle Sidebar            | Ctrl+B           | Cmd+B            |
-| Close Tab                 | Ctrl+W           | Cmd+W            |
-| Next Tab                  | Ctrl+Tab         | Cmd+Tab          |
-| Previous Tab              | Ctrl+Shift+Tab   | Cmd+Shift+Tab    |
-| Presentation Mode         | F5               | F5               |
-| Exit Presentation         | Escape           | Escape           |
-| Toggle Title Bar & Menu   | Ctrl+Shift+D     | Cmd+Shift+D      |
-| Quit                      | Ctrl+Q           | Cmd+Q            |
+| Action                    | macOS            |
+| ------------------------- | ---------------- |
+| New File                  | Cmd+N            |
+| Open Directory            | Cmd+O            |
+| Save                      | Cmd+S            |
+| Save As                   | Cmd+Shift+S      |
+| Toggle Sidebar            | Cmd+B            |
+| Close Tab                 | Cmd+W            |
+| Next Tab                  | Cmd+Tab          |
+| Previous Tab              | Cmd+Shift+Tab    |
+| Presentation Mode         | F5               |
+| Exit Presentation         | Escape           |
+| Toggle Title Bar & Menu   | Cmd+Shift+D      |
+| Quit                      | Cmd+Q            |
 
 ### File Operations
 
@@ -118,7 +116,7 @@ ExcaliApp includes a presentation mode designed for teaching and presenting diag
 
 For tiling window managers (Hyprland, i3, Sway) or users who prefer a minimal UI:
 
-- Press **Ctrl+Shift+D** to toggle the title bar and native menus
+- Press **Cmd+Shift+D** to toggle the title bar and native menus
 - This preference persists across sessions
 - All functionality remains accessible via keyboard shortcuts
 
@@ -253,6 +251,57 @@ npm run type-check
 # Format code
 npm run format
 ```
+
+## GitHub Release
+
+Every pushed `v*` tag, such as `v0.2.0`, triggers `.github/workflows/release.yml`. The workflow builds the Apple Silicon DMG and creates a GitHub Release with the DMG attached. No Apple App Store secrets are required for this release path.
+
+Publish a GitHub Release:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Notes:
+
+- The GitHub Release build targets Apple Silicon only (`aarch64-apple-darwin`) and requires macOS 12 or newer.
+- The DMG is not App Store signed or notarized. macOS Gatekeeper may show an unsigned-app warning until Developer ID signing and notarization are added.
+- Keep `package-lock.json` and `src-tauri/Cargo.lock` committed for reproducible release builds.
+
+## Manual Mac App Store Release
+
+The Mac App Store workflow is separate from GitHub Releases and only runs when manually triggered from GitHub Actions. It builds the signed MAS `.pkg`, uploads it to App Store Connect, and stores the package as a workflow artifact.
+
+Configure these repository secrets before running `.github/workflows/app-store-release.yml`:
+
+```text
+APPLE_TEAM_ID
+APPLE_CERTIFICATE_BASE64
+APPLE_CERTIFICATE_PASSWORD
+APPLE_INSTALLER_CERTIFICATE_BASE64
+APPLE_INSTALLER_CERTIFICATE_PASSWORD
+APPLE_API_KEY_ID
+APPLE_API_ISSUER
+APPLE_API_PRIVATE_KEY_BASE64
+KEYCHAIN_PASSWORD
+MAS_PROVISION_PROFILE_BASE64
+```
+
+Generate the base64 values locally:
+
+```bash
+base64 -i AppleDistribution.p12 | pbcopy
+base64 -i AppleInstaller.p12 | pbcopy
+base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy
+base64 -i ExcaliApp.provisionprofile | pbcopy
+```
+
+Notes:
+
+- The Mac App Store build uses `src-tauri/tauri.appstore.conf.json`, `src-tauri/Entitlements.mas.plist.template`, and a generated local `embedded.provisionprofile`.
+- Generated signing/provisioning files are intentionally ignored by git.
+- The app is sandboxed and uses user-selected read/write access. If persistent access to the last opened folder after app restart is required, implement security-scoped bookmarks before relying on automatic folder restore in the store build.
 
 ### Contributing
 

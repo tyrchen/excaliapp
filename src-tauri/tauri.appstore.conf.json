@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": ["app"],
+    "macOS": {
+      "entitlements": "./Entitlements.mas.generated.plist",
+      "files": {
+        "embedded.provisionprofile": "./embedded.provisionprofile"
+      },
+      "minimumSystemVersion": "12.0"
+    }
+  }
+}

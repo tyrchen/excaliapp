@@ -51,9 +51,23 @@ export function LaserPointer() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    const resizeCanvas = () => {
+      const dpr = window.devicePixelRatio || 1
+      const width = window.innerWidth
+      const height = window.innerHeight
+
+      canvas.width = Math.ceil(width * dpr)
+      canvas.height = Math.ceil(height * dpr)
+      canvas.style.width = `${width}px`
+      canvas.style.height = `${height}px`
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+
+    resizeCanvas()
+    window.addEventListener('resize', resizeCanvas)
+
     const render = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
 
       const now = Date.now()
 
@@ -90,6 +104,7 @@ export function LaserPointer() {
 
     return () => {
       cancelAnimationFrame(animFrameRef.current)
+      window.removeEventListener('resize', resizeCanvas)
     }
   }, [])
 

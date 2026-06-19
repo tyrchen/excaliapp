@@ -34,13 +34,11 @@ export function useMenuHandler() {
   }
 
   useEffect(() => {
-    console.log('🟣 [useMenuHandler] Setting up menu command listener')
     let unlisten: UnlistenFn | null = null
 
     const setupListener = async () => {
       unlisten = await listen<MenuCommand>('menu-command', async (event) => {
         const { command, data } = event.payload
-        console.log('🟣 [useMenuHandler] Menu command received:', command, data)
 
         switch (command) {
           // File menu commands
@@ -112,7 +110,7 @@ export function useMenuHandler() {
             break
 
           default:
-            console.log('Unknown menu command:', command)
+            console.warn('Unknown menu command:', command)
         }
       })
     }
@@ -173,8 +171,11 @@ export function useMenuHandler() {
     })
 
     if (newPath) {
-      // Optionally update the active file to the new path
-      console.log('File saved as:', newPath)
+      useStore.getState().setActiveFile({
+        name: newPath.split('/').pop() ?? activeFile.name,
+        path: newPath,
+        modified: false,
+      })
     }
   }
 
