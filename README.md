@@ -220,37 +220,28 @@ npm run type-check
 npm run format
 ```
 
-## Mac App Store Release
+## GitHub Release
 
-The repository includes a Mac App Store specific Tauri config and helper scripts. Before uploading, create an App Store Connect app whose Bundle ID matches `com.tchen.excaliapp`, then create a "Mac App Store Connect" provisioning profile for that App ID.
+Every pushed `v*` tag, such as `v0.2.0`, triggers `.github/workflows/release.yml`. The workflow builds the Apple Silicon DMG and creates a GitHub Release with the DMG attached. No Apple App Store secrets are required for this release path.
 
-Required local environment:
-
-```bash
-export APPLE_TEAM_ID="YOURTEAMID"
-export APPLE_SIGNING_IDENTITY="Apple Distribution: Your Name (YOURTEAMID)"
-export APPLE_INSTALLER_SIGNING_IDENTITY="3rd Party Mac Developer Installer: Your Name (YOURTEAMID)"
-export MAS_PROVISION_PROFILE="/absolute/path/to/ExcaliApp.provisionprofile"
-export APPLE_API_KEY_ID="APP_STORE_CONNECT_KEY_ID"
-export APPLE_API_ISSUER="APP_STORE_CONNECT_ISSUER_ID"
-```
-
-Build and upload:
+Publish a GitHub Release:
 
 ```bash
-rustup target add aarch64-apple-darwin
-npm ci
-npm run test:run
-npm run mas:build
-npm run mas:pkg
-npm run mas:upload
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
-### GitHub Actions Release
+Notes:
 
-Every pushed `v*` tag, such as `v0.1.0`, triggers `.github/workflows/release.yml`. The workflow builds the Apple Silicon Mac App Store package, uploads it to App Store Connect, and creates a GitHub Release with the signed `.pkg` attached.
+- The GitHub Release build targets Apple Silicon only (`aarch64-apple-darwin`) and requires macOS 12 or newer.
+- The DMG is not App Store signed or notarized. macOS Gatekeeper may show an unsigned-app warning until Developer ID signing and notarization are added.
+- Keep `package-lock.json` and `src-tauri/Cargo.lock` committed for reproducible release builds.
 
-Configure these repository secrets before pushing a release tag:
+## Manual Mac App Store Release
+
+The Mac App Store workflow is separate from GitHub Releases and only runs when manually triggered from GitHub Actions. It builds the signed MAS `.pkg`, uploads it to App Store Connect, and stores the package as a workflow artifact.
+
+Configure these repository secrets before running `.github/workflows/app-store-release.yml`:
 
 ```text
 APPLE_TEAM_ID
@@ -274,20 +265,11 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy
 base64 -i ExcaliApp.provisionprofile | pbcopy
 ```
 
-Publish a release:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
 Notes:
 
 - The Mac App Store build uses `src-tauri/tauri.appstore.conf.json`, `src-tauri/Entitlements.mas.plist.template`, and a generated local `embedded.provisionprofile`.
-- The Mac App Store build targets Apple Silicon only (`aarch64-apple-darwin`) and requires macOS 12 or newer.
 - Generated signing/provisioning files are intentionally ignored by git.
 - The app is sandboxed and uses user-selected read/write access. If persistent access to the last opened folder after app restart is required, implement security-scoped bookmarks before relying on automatic folder restore in the store build.
-- Keep `package-lock.json` and `src-tauri/Cargo.lock` committed for reproducible release builds.
 
 ### Contributing
 
