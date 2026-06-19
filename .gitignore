@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+*.pkg
 
 # Editor directories and files
 .vscode/*
@@ -22,5 +23,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-*.lock
-package-lock.json
+
+# Mac App Store build inputs generated from local credentials.
+src-tauri/Entitlements.mas.generated.plist
+src-tauri/embedded.provisionprofile

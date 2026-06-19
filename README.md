@@ -220,6 +220,75 @@ npm run type-check
 npm run format
 ```
 
+## Mac App Store Release
+
+The repository includes a Mac App Store specific Tauri config and helper scripts. Before uploading, create an App Store Connect app whose Bundle ID matches `com.tchen.excaliapp`, then create a "Mac App Store Connect" provisioning profile for that App ID.
+
+Required local environment:
+
+```bash
+export APPLE_TEAM_ID="YOURTEAMID"
+export APPLE_SIGNING_IDENTITY="Apple Distribution: Your Name (YOURTEAMID)"
+export APPLE_INSTALLER_SIGNING_IDENTITY="3rd Party Mac Developer Installer: Your Name (YOURTEAMID)"
+export MAS_PROVISION_PROFILE="/absolute/path/to/ExcaliApp.provisionprofile"
+export APPLE_API_KEY_ID="APP_STORE_CONNECT_KEY_ID"
+export APPLE_API_ISSUER="APP_STORE_CONNECT_ISSUER_ID"
+```
+
+Build and upload:
+
+```bash
+rustup target add aarch64-apple-darwin
+npm ci
+npm run test:run
+npm run mas:build
+npm run mas:pkg
+npm run mas:upload
+```
+
+### GitHub Actions Release
+
+Every pushed `v*` tag, such as `v0.1.0`, triggers `.github/workflows/release.yml`. The workflow builds the Apple Silicon Mac App Store package, uploads it to App Store Connect, and creates a GitHub Release with the signed `.pkg` attached.
+
+Configure these repository secrets before pushing a release tag:
+
+```text
+APPLE_TEAM_ID
+APPLE_CERTIFICATE_BASE64
+APPLE_CERTIFICATE_PASSWORD
+APPLE_INSTALLER_CERTIFICATE_BASE64
+APPLE_INSTALLER_CERTIFICATE_PASSWORD
+APPLE_API_KEY_ID
+APPLE_API_ISSUER
+APPLE_API_PRIVATE_KEY_BASE64
+KEYCHAIN_PASSWORD
+MAS_PROVISION_PROFILE_BASE64
+```
+
+Generate the base64 values locally:
+
+```bash
+base64 -i AppleDistribution.p12 | pbcopy
+base64 -i AppleInstaller.p12 | pbcopy
+base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy
+base64 -i ExcaliApp.provisionprofile | pbcopy
+```
+
+Publish a release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Notes:
+
+- The Mac App Store build uses `src-tauri/tauri.appstore.conf.json`, `src-tauri/Entitlements.mas.plist.template`, and a generated local `embedded.provisionprofile`.
+- The Mac App Store build targets Apple Silicon only (`aarch64-apple-darwin`) and requires macOS 12 or newer.
+- Generated signing/provisioning files are intentionally ignored by git.
+- The app is sandboxed and uses user-selected read/write access. If persistent access to the last opened folder after app restart is required, implement security-scoped bookmarks before relying on automatic folder restore in the store build.
+- Keep `package-lock.json` and `src-tauri/Cargo.lock` committed for reproducible release builds.
+
 ### Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
