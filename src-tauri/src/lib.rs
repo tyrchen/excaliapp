@@ -343,8 +343,14 @@ async fn create_new_file(directory: String, file_name: String) -> Result<String,
         return Err(format!("Path is not a directory: {}", directory));
     }
 
+    let final_file_name = if file_name.ends_with(".excalidraw") {
+        file_name
+    } else {
+        format!("{}.excalidraw", file_name)
+    };
+
     // Safely join the filename to the directory
-    let mut path = security::safe_path_join(&validated_dir, &file_name)?;
+    let mut path = security::safe_path_join(&validated_dir, &final_file_name)?;
 
     // Check if file already exists and suggest alternative
     if path.exists() {
@@ -463,6 +469,31 @@ async fn rename_file(old_path: String, new_name: String) -> Result<String, Strin
 }
 
 #[tauri::command]
+async fn rename_folder(old_path: String, new_name: String) -> Result<String, String> {
+    let old_path = Path::new(&old_path);
+    let validated_old = security::validate_path(old_path, None)?;
+
+    if !validated_old.exists() {
+        return Err("Folder does not exist".to_string());
+    }
+
+    if !validated_old.is_dir() {
+        return Err("Path is not a folder".to_string());
+    }
+
+    let parent = validated_old.parent().ok_or("Invalid folder path")?;
+    let new_path = security::safe_path_join(parent, &new_name)?;
+
+    if new_path.exists() && new_path != validated_old {
+        return Err("A folder or file with that name already exists".to_string());
+    }
+
+    fs::rename(&validated_old, &new_path).map_err(|e| format!("Failed to rename folder: {}", e))?;
+
+    Ok(new_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 async fn delete_file(file_path: String) -> Result<(), String> {
     // Validate path to prevent traversal attacks
     let path = Path::new(&file_path);
@@ -476,6 +507,24 @@ async fn delete_file(file_path: String) -> Result<(), String> {
     security::validate_excalidraw_file(&validated_path)?;
 
     fs::remove_file(&validated_path).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_folder(folder_path: String) -> Result<(), String> {
+    let path = Path::new(&folder_path);
+    let validated_path = security::validate_path(path, None)?;
+
+    if !validated_path.exists() {
+        return Err("Folder does not exist".to_string());
+    }
+
+    if !validated_path.is_dir() {
+        return Err("Path is not a folder".to_string());
+    }
+
+    fs::remove_dir_all(&validated_path).map_err(|e| format!("Failed to delete folder: {}", e))?;
 
     Ok(())
 }
@@ -640,7 +689,9 @@ pub fn run() {
             create_new_file,
             create_new_folder,
             rename_file,
+            rename_folder,
             delete_file,
+            delete_folder,
             get_preferences,
             save_preferences,
             watch_directory,

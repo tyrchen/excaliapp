@@ -158,9 +158,12 @@ export function useMenuHandler() {
       return
     }
     
-    // Create with timestamp filename
-    const fileName = `Untitled-${Date.now()}.excalidraw`
-    await createNewFile(fileName)
+    const fileName = window.prompt('File name', 'Untitled.excalidraw')
+    if (!fileName?.trim()) {
+      return
+    }
+
+    await createNewFile(fileName.trim())
   }
 
   const handleNewFolder = async () => {
@@ -175,9 +178,12 @@ export function useMenuHandler() {
       return
     }
 
-    // Create with timestamp folder name
-    const folderName = `New Folder-${Date.now()}`
-    await createNewFolder(folderName)
+    const folderName = window.prompt('Folder name', 'New Folder')
+    if (!folderName?.trim()) {
+      return
+    }
+
+    await createNewFolder(folderName.trim())
   }
 
   const handleSaveAs = async () => {

@@ -10,6 +10,7 @@ export function useKeyboardShortcuts() {
     activeFile,
     loadFile,
     createNewFile,
+    createNewFolder,
     togglePresentationMode,
     closeTab,
     toggleDecorations,
@@ -68,8 +69,8 @@ export function useKeyboardShortcuts() {
         }
       }
 
-      // Cmd/Ctrl + N: New file
-      if (modKey && e.key === 'n') {
+      // Cmd/Ctrl + Shift + N: New folder
+      if (modKey && e.shiftKey && e.key.toLowerCase() === 'n') {
         e.preventDefault()
 
         const state = useStore.getState()
@@ -83,9 +84,35 @@ export function useKeyboardShortcuts() {
           return
         }
 
-        // Create with timestamp filename
-        const fileName = `Untitled-${Date.now()}.excalidraw`
-        await createNewFile(fileName)
+        const folderName = window.prompt('Folder name', 'New Folder')
+        if (!folderName?.trim()) {
+          return
+        }
+
+        await createNewFolder(folderName.trim())
+      }
+
+      // Cmd/Ctrl + N: New file
+      if (modKey && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+
+        const state = useStore.getState()
+
+        // If no directory is selected, select one first
+        if (!state.currentDirectory) {
+          const dir = await invoke<string | null>('select_directory')
+          if (dir) {
+            await state.loadDirectory(dir)
+          }
+          return
+        }
+
+        const fileName = window.prompt('File name', 'Untitled.excalidraw')
+        if (!fileName?.trim()) {
+          return
+        }
+
+        await createNewFile(fileName.trim())
       }
 
       // Cmd/Ctrl + W: Close current tab
@@ -115,5 +142,5 @@ export function useKeyboardShortcuts() {
     // Use non-capturing phase to let Excalidraw handle events first
     window.addEventListener('keydown', handleKeyDown, false)
     return () => window.removeEventListener('keydown', handleKeyDown, false)
-  }, [toggleSidebar, saveCurrentFile, openTabs, activeFile, loadFile, createNewFile, togglePresentationMode, closeTab, toggleDecorations])
+  }, [toggleSidebar, saveCurrentFile, openTabs, activeFile, loadFile, createNewFile, createNewFolder, togglePresentationMode, closeTab, toggleDecorations])
 }

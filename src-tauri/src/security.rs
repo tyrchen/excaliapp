@@ -80,11 +80,12 @@ pub fn validate_excalidraw_content(content: &str) -> Result<(), String> {
 pub fn safe_path_join(base: &Path, file_name: &str) -> Result<PathBuf, String> {
     // Remove any path separators from the filename to prevent directory traversal
     let clean_name = file_name
+        .trim()
         .replace('/', "_")
         .replace('\\', "_")
         .replace("..", "_");
 
-    if clean_name.is_empty() {
+    if clean_name.is_empty() || clean_name == "." {
         return Err("Invalid filename".to_string());
     }
 
