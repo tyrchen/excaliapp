@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useStore } from '../store/useStore'
+import { promptForName } from '../lib/namePrompt'
 
 export function useKeyboardShortcuts() {
   const {
@@ -80,16 +81,21 @@ export function useKeyboardShortcuts() {
           const dir = await invoke<string | null>('select_directory')
           if (dir) {
             await state.loadDirectory(dir)
+          } else {
+            return
           }
+        }
+
+        const folderName = await promptForName({
+          title: 'Folder name',
+          defaultValue: 'New Folder',
+          confirmLabel: 'Create',
+        })
+        if (!folderName) {
           return
         }
 
-        const folderName = window.prompt('Folder name', 'New Folder')
-        if (!folderName?.trim()) {
-          return
-        }
-
-        await createNewFolder(folderName.trim())
+        await createNewFolder(folderName)
       }
 
       // Cmd/Ctrl + N: New file
@@ -103,16 +109,21 @@ export function useKeyboardShortcuts() {
           const dir = await invoke<string | null>('select_directory')
           if (dir) {
             await state.loadDirectory(dir)
+          } else {
+            return
           }
+        }
+
+        const fileName = await promptForName({
+          title: 'File name',
+          defaultValue: 'Untitled.excalidraw',
+          confirmLabel: 'Create',
+        })
+        if (!fileName) {
           return
         }
 
-        const fileName = window.prompt('File name', 'Untitled.excalidraw')
-        if (!fileName?.trim()) {
-          return
-        }
-
-        await createNewFile(fileName.trim())
+        await createNewFile(fileName)
       }
 
       // Cmd/Ctrl + W: Close current tab

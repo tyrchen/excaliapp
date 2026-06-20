@@ -150,6 +150,73 @@ html, body, #root {
   color: var(--app-text);
 }
 
+.name-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.36);
+}
+
+.name-prompt-dialog {
+  width: min(360px, calc(100vw - 32px));
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+  color: var(--app-text);
+  padding: 16px;
+}
+
+.name-prompt-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.name-prompt-input {
+  width: 100%;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-size: 14px;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.name-prompt-input:focus {
+  border-color: var(--app-accent);
+}
+
+.name-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.name-prompt-button {
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 13px;
+  padding: 7px 12px;
+}
+
+.name-prompt-button:hover {
+  background: var(--app-surface-hover);
+}
+
+.name-prompt-button.primary {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: white;
+}
+
 .modified-dot {
   background: var(--app-modified);
 }

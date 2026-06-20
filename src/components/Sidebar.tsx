@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore'
 import { TreeView } from './TreeView'
 import { FileTreeNode } from '../types'
 import { invoke } from '@tauri-apps/api/core'
+import { promptForName } from '../lib/namePrompt'
 
 function countFilesInTree(nodes: FileTreeNode[]): number {
   let count = 0
@@ -36,40 +37,47 @@ export function Sidebar() {
   }
 
   const handleNewFile = async () => {
-    // Simple direct call without prompts for now
     if (!currentDirectory) {
-      // If no directory, select one first
       const dir = await invoke<string | null>('select_directory')
       if (dir) {
         await useStore.getState().loadDirectory(dir)
+      } else {
+        return
       }
-      return
     }
     
-    const fileName = window.prompt('File name', 'Untitled.excalidraw')
-    if (!fileName?.trim()) {
+    const fileName = await promptForName({
+      title: 'File name',
+      defaultValue: 'Untitled.excalidraw',
+      confirmLabel: 'Create',
+    })
+    if (!fileName) {
       return
     }
 
-    await createNewFile(fileName.trim())
+    await createNewFile(fileName)
   }
 
   const handleNewFolder = async () => {
     if (!currentDirectory) {
-      // If no directory, select one first
       const dir = await invoke<string | null>('select_directory')
       if (dir) {
         await useStore.getState().loadDirectory(dir)
+      } else {
+        return
       }
+    }
+
+    const folderName = await promptForName({
+      title: 'Folder name',
+      defaultValue: 'New Folder',
+      confirmLabel: 'Create',
+    })
+    if (!folderName) {
       return
     }
 
-    const folderName = window.prompt('Folder name', 'New Folder')
-    if (!folderName?.trim()) {
-      return
-    }
-
-    await createNewFolder(folderName.trim())
+    await createNewFolder(folderName)
   }
 
   return (

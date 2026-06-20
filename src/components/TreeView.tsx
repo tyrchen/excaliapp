@@ -15,6 +15,7 @@ import { cn } from '../lib/utils'
 import { FileTreeNode } from '../types'
 import { useStore } from '../store/useStore'
 import { ask, message } from '@tauri-apps/plugin-dialog'
+import { promptForName } from '../lib/namePrompt'
 
 interface TreeViewProps {
   nodes: FileTreeNode[]
@@ -107,12 +108,16 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
     e?.stopPropagation()
     setShowMenu(false)
 
-    const fileName = window.prompt('File name', 'Untitled.excalidraw')
-    if (!fileName?.trim()) {
+    const fileName = await promptForName({
+      title: 'File name',
+      defaultValue: 'Untitled.excalidraw',
+      confirmLabel: 'Create',
+    })
+    if (!fileName) {
       return
     }
 
-    await createNewFile(fileName.trim(), node.path)
+    await createNewFile(fileName, node.path)
     setIsExpanded(true)
   }
 
@@ -121,12 +126,16 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
     e?.stopPropagation()
     setShowMenu(false)
 
-    const folderName = window.prompt('Folder name', 'New Folder')
-    if (!folderName?.trim()) {
+    const folderName = await promptForName({
+      title: 'Folder name',
+      defaultValue: 'New Folder',
+      confirmLabel: 'Create',
+    })
+    if (!folderName) {
       return
     }
 
-    await createNewFolder(folderName.trim(), node.path)
+    await createNewFolder(folderName, node.path)
     setIsExpanded(true)
   }
   

@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useStore } from '../store/useStore'
 import { convertPreferencesToRust } from '../lib/preferences'
+import { promptForName } from '../lib/namePrompt'
 
 interface MenuCommand {
   command: string
@@ -154,16 +155,21 @@ export function useMenuHandler() {
       const dir = await invoke<string | null>('select_directory')
       if (dir) {
         await state.loadDirectory(dir)
+      } else {
+        return
       }
-      return
     }
     
-    const fileName = window.prompt('File name', 'Untitled.excalidraw')
-    if (!fileName?.trim()) {
+    const fileName = await promptForName({
+      title: 'File name',
+      defaultValue: 'Untitled.excalidraw',
+      confirmLabel: 'Create',
+    })
+    if (!fileName) {
       return
     }
 
-    await createNewFile(fileName.trim())
+    await createNewFile(fileName)
   }
 
   const handleNewFolder = async () => {
@@ -174,16 +180,21 @@ export function useMenuHandler() {
       const dir = await invoke<string | null>('select_directory')
       if (dir) {
         await state.loadDirectory(dir)
+      } else {
+        return
       }
+    }
+
+    const folderName = await promptForName({
+      title: 'Folder name',
+      defaultValue: 'New Folder',
+      confirmLabel: 'Create',
+    })
+    if (!folderName) {
       return
     }
 
-    const folderName = window.prompt('Folder name', 'New Folder')
-    if (!folderName?.trim()) {
-      return
-    }
-
-    await createNewFolder(folderName.trim())
+    await createNewFolder(folderName)
   }
 
   const handleSaveAs = async () => {
