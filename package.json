@@ -1,7 +1,7 @@
 {
   "name": "excaliapp",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
+    "release:mac": "node scripts/release-macos.mjs",
     "mas:prepare": "node scripts/prepare-mas-build.mjs",
     "mas:build": "npm run mas:prepare && npm run tauri -- build --bundles app --target aarch64-apple-darwin --config src-tauri/tauri.appstore.conf.json",
     "mas:pkg": "node scripts/package-mas.mjs",
