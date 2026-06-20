@@ -26,7 +26,6 @@ jobs:
       APPLE_INSTALLER_SIGNING_IDENTITY: "3rd Party Mac Developer Installer: Tian Chen (${{ secrets.APPLE_TEAM_ID }})"
       APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-      KEYCHAIN_PATH: ${{ runner.temp }}/app-signing.keychain-db
       MAS_PKG_PATH: dist/mas/ExcaliApp-${{ inputs.version }}-macos-arm64.pkg
       MAS_TARGET_DIR: aarch64-apple-darwin
       CARGO_TARGET_DIR: ${{ github.workspace }}/src-tauri/target
@@ -66,6 +65,9 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
           test -n "$APPLE_CERTIFICATE_BASE64"
           test -n "$APPLE_CERTIFICATE_PASSWORD"
