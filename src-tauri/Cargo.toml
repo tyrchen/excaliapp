@@ -1,6 +1,6 @@
 [package]
 name = "excaliapp"
-version = "0.2.0"
+version = "0.3.0"
 description = "A local-first Excalidraw desktop editor"
 authors = ["ExcaliApp Contributors"]
 edition = "2024"
