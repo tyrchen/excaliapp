@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useStore } from '../store/useStore'
 import { convertPreferencesToRust } from '../lib/preferences'
+import { promptForName } from '../lib/namePrompt'
 
 interface MenuCommand {
   command: string
@@ -21,6 +22,7 @@ export function useMenuHandler() {
   const {
     loadDirectory,
     createNewFile,
+    createNewFolder,
     saveCurrentFile,
     activeFile,
     toggleSidebar,
@@ -48,6 +50,10 @@ export function useMenuHandler() {
 
           case 'new_file':
             handleNewFile()
+            break
+
+          case 'new_folder':
+            handleNewFolder()
             break
 
           case 'save':
@@ -125,6 +131,7 @@ export function useMenuHandler() {
   }, [
     loadDirectory,
     createNewFile,
+    createNewFolder,
     saveCurrentFile,
     activeFile,
     toggleSidebar,
@@ -148,13 +155,46 @@ export function useMenuHandler() {
       const dir = await invoke<string | null>('select_directory')
       if (dir) {
         await state.loadDirectory(dir)
+      } else {
+        return
       }
-      return
     }
     
-    // Create with timestamp filename
-    const fileName = `Untitled-${Date.now()}.excalidraw`
+    const fileName = await promptForName({
+      title: 'File name',
+      defaultValue: 'Untitled.excalidraw',
+      confirmLabel: 'Create',
+    })
+    if (!fileName) {
+      return
+    }
+
     await createNewFile(fileName)
+  }
+
+  const handleNewFolder = async () => {
+    const state = useStore.getState()
+
+    // If no directory is selected, select one first
+    if (!state.currentDirectory) {
+      const dir = await invoke<string | null>('select_directory')
+      if (dir) {
+        await state.loadDirectory(dir)
+      } else {
+        return
+      }
+    }
+
+    const folderName = await promptForName({
+      title: 'Folder name',
+      defaultValue: 'New Folder',
+      confirmLabel: 'Create',
+    })
+    if (!folderName) {
+      return
+    }
+
+    await createNewFolder(folderName)
   }
 
   const handleSaveAs = async () => {
@@ -277,6 +317,7 @@ Keyboard Shortcuts:
 File:
   Open Directory: Cmd/Ctrl+O
   New File: Cmd/Ctrl+N
+  New Folder: Cmd/Ctrl+Shift+N
   Save: Cmd/Ctrl+S
   Save As: Cmd/Ctrl+Shift+S
   Quit: Cmd/Ctrl+Q

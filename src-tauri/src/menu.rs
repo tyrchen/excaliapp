@@ -40,6 +40,10 @@ fn create_file_menu<R: Runtime>(
         .accelerator("CmdOrCtrl+N")
         .build(app)?;
 
+    let new_folder = MenuItemBuilder::with_id("new_folder", "New Folder")
+        .accelerator("CmdOrCtrl+Shift+N")
+        .build(app)?;
+
     let save = MenuItemBuilder::with_id("save", "Save")
         .accelerator("CmdOrCtrl+S")
         .build(app)?;
@@ -67,6 +71,7 @@ fn create_file_menu<R: Runtime>(
         .items(&[
             &open_directory,
             &new_file,
+            &new_folder,
             &separator,
             &save,
             &save_as,

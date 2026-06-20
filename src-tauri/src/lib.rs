@@ -119,6 +119,10 @@ fn collect_excalidraw_files_recursive(
         Ok(entries) => {
             for entry in entries.flatten() {
                 let path = entry.path();
+                if is_hidden_path(&path) {
+                    continue;
+                }
+
                 if path.is_file() {
                     if let Some(extension) = path.extension() {
                         if extension == "excalidraw" {
@@ -141,11 +145,21 @@ fn collect_excalidraw_files_recursive(
     Ok(())
 }
 
+fn is_hidden_path(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with('.'))
+}
+
 fn build_file_tree(dir: &Path, tree: &mut Vec<FileTreeNode>) -> Result<(), String> {
     match fs::read_dir(dir) {
         Ok(entries) => {
             for entry in entries.flatten() {
                 let path = entry.path();
+                if is_hidden_path(&path) {
+                    continue;
+                }
+
                 let name = path
                     .file_name()
                     .ok_or("Invalid file name")?
@@ -156,22 +170,19 @@ fn build_file_tree(dir: &Path, tree: &mut Vec<FileTreeNode>) -> Result<(), Strin
                     let mut children = Vec::new();
                     build_file_tree(&path, &mut children)?;
 
-                    // Only include directories that contain .excalidraw files (directly or in subdirs)
-                    if has_excalidraw_files(&path)? {
-                        children.sort_by(|a, b| match (a.is_directory, b.is_directory) {
-                            (true, false) => std::cmp::Ordering::Less,
-                            (false, true) => std::cmp::Ordering::Greater,
-                            _ => a.name.cmp(&b.name),
-                        });
+                    children.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+                        (true, false) => std::cmp::Ordering::Less,
+                        (false, true) => std::cmp::Ordering::Greater,
+                        _ => a.name.cmp(&b.name),
+                    });
 
-                        tree.push(FileTreeNode {
-                            name,
-                            path: path.to_string_lossy().to_string(),
-                            is_directory: true,
-                            modified: false,
-                            children: Some(children),
-                        });
-                    }
+                    tree.push(FileTreeNode {
+                        name,
+                        path: path.to_string_lossy().to_string(),
+                        is_directory: true,
+                        modified: false,
+                        children: Some(children),
+                    });
                 } else if path.is_file() {
                     if let Some(extension) = path.extension() {
                         if extension == "excalidraw" {
@@ -190,27 +201,6 @@ fn build_file_tree(dir: &Path, tree: &mut Vec<FileTreeNode>) -> Result<(), Strin
         Err(e) => return Err(e.to_string()),
     }
     Ok(())
-}
-
-fn has_excalidraw_files(dir: &Path) -> Result<bool, String> {
-    match fs::read_dir(dir) {
-        Ok(entries) => {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(extension) = path.extension() {
-                        if extension == "excalidraw" {
-                            return Ok(true);
-                        }
-                    }
-                } else if path.is_dir() && has_excalidraw_files(&path)? {
-                    return Ok(true);
-                }
-            }
-        }
-        Err(e) => return Err(e.to_string()),
-    }
-    Ok(false)
 }
 
 #[tauri::command]
@@ -300,6 +290,63 @@ async fn save_file_as(app: AppHandle, content: String) -> Result<Option<String>,
     }
 }
 
+/// Creates a new folder in the specified directory
+#[tauri::command]
+async fn create_new_folder(directory: String, folder_name: String) -> Result<String, String> {
+    // Validate and canonicalize the directory path
+    let dir_path = Path::new(&directory);
+    let validated_dir = security::validate_path(dir_path, None)?;
+
+    if !validated_dir.is_dir() {
+        return Err(format!("Path is not a directory: {}", directory));
+    }
+
+    // Safely join the folder name to the directory
+    let mut path = security::safe_path_join(&validated_dir, &folder_name)?;
+
+    // Check if folder already exists and find unique name
+    if path.exists() {
+        let mut counter = 1;
+        let base_name = folder_name.trim_end_matches('/').to_string();
+
+        loop {
+            let new_name = format!("{}-{}", base_name, counter);
+            path = security::safe_path_join(&validated_dir, &new_name)?;
+
+            if !path.exists() {
+                break;
+            }
+            counter += 1;
+
+            if counter > 100 {
+                return Err("Could not find unique folder name".to_string());
+            }
+        }
+    }
+
+    match fs::create_dir(&path) {
+        Ok(_) => {
+            // Verify the folder was created
+            if !path.exists() {
+                eprintln!("[create_new_folder] Folder doesn't exist after creation!");
+                return Err("Folder creation verification failed".to_string());
+            }
+
+            // Verify it's actually a directory
+            if !path.is_dir() {
+                eprintln!("[create_new_folder] Path exists but is not a directory!");
+                return Err("Created path is not a directory".to_string());
+            }
+
+            Ok(path.to_string_lossy().to_string())
+        }
+        Err(e) => {
+            eprintln!("[create_new_folder] Failed to create folder: {}", e);
+            Err(format!("Failed to create folder: {}", e))
+        }
+    }
+}
+
 #[tauri::command]
 async fn create_new_file(directory: String, file_name: String) -> Result<String, String> {
     // Validate and canonicalize the directory path
@@ -310,8 +357,14 @@ async fn create_new_file(directory: String, file_name: String) -> Result<String,
         return Err(format!("Path is not a directory: {}", directory));
     }
 
+    let final_file_name = if file_name.ends_with(".excalidraw") {
+        file_name
+    } else {
+        format!("{}.excalidraw", file_name)
+    };
+
     // Safely join the filename to the directory
-    let mut path = security::safe_path_join(&validated_dir, &file_name)?;
+    let mut path = security::safe_path_join(&validated_dir, &final_file_name)?;
 
     // Check if file already exists and suggest alternative
     if path.exists() {
@@ -430,6 +483,31 @@ async fn rename_file(old_path: String, new_name: String) -> Result<String, Strin
 }
 
 #[tauri::command]
+async fn rename_folder(old_path: String, new_name: String) -> Result<String, String> {
+    let old_path = Path::new(&old_path);
+    let validated_old = security::validate_path(old_path, None)?;
+
+    if !validated_old.exists() {
+        return Err("Folder does not exist".to_string());
+    }
+
+    if !validated_old.is_dir() {
+        return Err("Path is not a folder".to_string());
+    }
+
+    let parent = validated_old.parent().ok_or("Invalid folder path")?;
+    let new_path = security::safe_path_join(parent, &new_name)?;
+
+    if new_path.exists() && new_path != validated_old {
+        return Err("A folder or file with that name already exists".to_string());
+    }
+
+    fs::rename(&validated_old, &new_path).map_err(|e| format!("Failed to rename folder: {}", e))?;
+
+    Ok(new_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 async fn delete_file(file_path: String) -> Result<(), String> {
     // Validate path to prevent traversal attacks
     let path = Path::new(&file_path);
@@ -443,6 +521,24 @@ async fn delete_file(file_path: String) -> Result<(), String> {
     security::validate_excalidraw_file(&validated_path)?;
 
     fs::remove_file(&validated_path).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_folder(folder_path: String) -> Result<(), String> {
+    let path = Path::new(&folder_path);
+    let validated_path = security::validate_path(path, None)?;
+
+    if !validated_path.exists() {
+        return Err("Folder does not exist".to_string());
+    }
+
+    if !validated_path.is_dir() {
+        return Err("Path is not a folder".to_string());
+    }
+
+    fs::remove_dir_all(&validated_path).map_err(|e| format!("Failed to delete folder: {}", e))?;
 
     Ok(())
 }
@@ -605,8 +701,11 @@ pub fn run() {
             save_file,
             save_file_as,
             create_new_file,
+            create_new_folder,
             rename_file,
+            rename_folder,
             delete_file,
+            delete_folder,
             get_preferences,
             save_preferences,
             watch_directory,

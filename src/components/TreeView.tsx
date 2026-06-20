@@ -1,9 +1,21 @@
 import { useState, useRef, useEffect, memo } from 'react'
-import { ChevronDown, ChevronRight, File, Folder, FolderOpen, Edit2, Trash2, MoreVertical } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Edit2,
+  File,
+  FilePlus,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  MoreVertical,
+  Trash2,
+} from 'lucide-react'
 import { cn } from '../lib/utils'
 import { FileTreeNode } from '../types'
 import { useStore } from '../store/useStore'
 import { ask, message } from '@tauri-apps/plugin-dialog'
+import { promptForName } from '../lib/namePrompt'
 
 interface TreeViewProps {
   nodes: FileTreeNode[]
@@ -18,13 +30,32 @@ interface TreeNodeProps {
   depth: number
 }
 
+function displayName(node: FileTreeNode): string {
+  return node.is_directory ? node.name : node.name.replace('.excalidraw', '')
+}
+
+function isPathInsideDirectory(path: string, directory: string): boolean {
+  return path === directory || path.startsWith(`${directory}/`) || path.startsWith(`${directory}\\`)
+}
+
 const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, depth }: TreeNodeProps) {
   const [isExpanded, setIsExpanded] = useState(depth === 0)
   const [isRenaming, setIsRenaming] = useState(false)
-  const [newName, setNewName] = useState(node.name.replace('.excalidraw', ''))
+  const [newName, setNewName] = useState(displayName(node))
   const [showMenu, setShowMenu] = useState(false)
   const renameInputRef = useRef<HTMLInputElement>(null)
-  const { renameFile, deleteFile, activeFile, isDirty } = useStore()
+  const cancelRenameRef = useRef(false)
+  const {
+    createNewFile,
+    createNewFolder,
+    renameFile,
+    renameFolder,
+    deleteFile,
+    deleteFolder,
+    activeFile,
+    isDirty,
+    openTabs,
+  } = useStore()
   
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
@@ -32,6 +63,12 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
       renameInputRef.current.select()
     }
   }, [isRenaming])
+
+  useEffect(() => {
+    if (!isRenaming) {
+      setNewName(displayName(node))
+    }
+  }, [isRenaming, node])
   
   const handleClick = () => {
     if (node.is_directory) {
@@ -42,17 +79,64 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
   }
   
   const handleRename = async () => {
+    if (cancelRenameRef.current) {
+      cancelRenameRef.current = false
+      setNewName(displayName(node))
+      setIsRenaming(false)
+      return
+    }
+
     if (!newName.trim()) {
-      setNewName(node.name.replace('.excalidraw', ''))
+      setNewName(displayName(node))
       setIsRenaming(false)
       return
     }
     
     const finalName = newName.trim()
-    if (finalName !== node.name.replace('.excalidraw', '')) {
-      await renameFile(node.path, finalName)
+    if (finalName !== displayName(node)) {
+      if (node.is_directory) {
+        await renameFolder(node.path, finalName)
+      } else {
+        await renameFile(node.path, finalName)
+      }
     }
     setIsRenaming(false)
+  }
+
+  const handleCreateFile = async (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
+    setShowMenu(false)
+
+    const fileName = await promptForName({
+      title: 'File name',
+      defaultValue: 'Untitled.excalidraw',
+      confirmLabel: 'Create',
+    })
+    if (!fileName) {
+      return
+    }
+
+    await createNewFile(fileName, node.path)
+    setIsExpanded(true)
+  }
+
+  const handleCreateFolder = async (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
+    setShowMenu(false)
+
+    const folderName = await promptForName({
+      title: 'Folder name',
+      defaultValue: 'New Folder',
+      confirmLabel: 'Create',
+    })
+    if (!folderName) {
+      return
+    }
+
+    await createNewFolder(folderName, node.path)
+    setIsExpanded(true)
   }
   
   const handleDelete = async (e?: React.MouseEvent) => {
@@ -64,13 +148,12 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
     // Close menu first
     setShowMenu(false)
     
-    // Get the filename for clear confirmation
-    const fileName = node.name.replace('.excalidraw', '')
+    const itemName = displayName(node)
     
     try {
       // Use Tauri's native dialog API for confirmation
       const confirmed = await ask(
-        `Are you sure you want to delete "${fileName}"?`,
+        `Are you sure you want to delete "${itemName}"?`,
         {
           title: 'Confirm Deletion',
           kind: 'warning',
@@ -80,9 +163,15 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
       )
       
       if (confirmed === true) {
-        if (activeFile?.path === node.path && isDirty) {
+        const hasUnsavedFile = !node.is_directory && activeFile?.path === node.path && isDirty
+        const hasUnsavedFolderFile = node.is_directory && (
+          (activeFile && isDirty && isPathInsideDirectory(activeFile.path, node.path)) ||
+          openTabs.some((tab) => tab.modified && isPathInsideDirectory(tab.path, node.path))
+        )
+
+        if (hasUnsavedFile || hasUnsavedFolderFile) {
           const discardUnsaved = await ask(
-            `"${fileName}" has unsaved changes. Delete it without saving?`,
+            `"${itemName}" contains unsaved changes. Delete without saving?`,
             {
               title: 'Unsaved Changes',
               kind: 'warning',
@@ -97,10 +186,14 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
         }
 
         try {
-          await deleteFile(node.path)
+          if (node.is_directory) {
+            await deleteFolder(node.path)
+          } else {
+            await deleteFile(node.path)
+          }
         } catch (error) {
-          console.error('Failed to delete file:', error)
-          await message(`Failed to delete file: ${error}`, { title: 'Error', kind: 'error' })
+          console.error('Failed to delete item:', error)
+          await message(`Failed to delete item: ${error}`, { title: 'Error', kind: 'error' })
         }
       }
     } catch (error) {
@@ -109,10 +202,8 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
   }
   
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (!node.is_directory) {
-      e.preventDefault()
-      setShowMenu(true)
-    }
+    e.preventDefault()
+    setShowMenu(true)
   }
   
   const handleMenuClick = (e: React.MouseEvent) => {
@@ -168,7 +259,8 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
               if (e.key === 'Enter') {
                 handleRename()
               } else if (e.key === 'Escape') {
-                setNewName(node.name.replace('.excalidraw', ''))
+                cancelRenameRef.current = true
+                setNewName(displayName(node))
                 setIsRenaming(false)
               }
             }}
@@ -177,7 +269,7 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
           />
         ) : (
           <span className="text-sm truncate flex-1">
-            {node.is_directory ? node.name : node.name.replace('.excalidraw', '')}
+            {displayName(node)}
           </span>
         )}
         
@@ -185,16 +277,14 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
           <span className="modified-dot w-2 h-2 rounded-full flex-shrink-0" />
         )}
         
-        {!node.is_directory && (
-          <button
-            onClick={handleMenuClick}
-            className="tree-menu-item opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
-            title="File actions"
-            aria-label={`File actions for ${node.name}`}
-          >
-            <MoreVertical className="w-3 h-3" />
-          </button>
-        )}
+        <button
+          onClick={handleMenuClick}
+          className="tree-menu-item opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+          title={node.is_directory ? 'Folder actions' : 'File actions'}
+          aria-label={`${node.is_directory ? 'Folder' : 'File'} actions for ${node.name}`}
+        >
+          <MoreVertical className="w-3 h-3" />
+        </button>
         
         {isActive && !node.is_directory && (
           <ChevronRight className="w-4 h-4 flex-shrink-0" />
@@ -202,14 +292,33 @@ const TreeNode = memo(function TreeNode({ node, onFileClick, activeFilePath, dep
       </div>
       
       {/* Context Menu */}
-      {showMenu && !node.is_directory && (
+      {showMenu && (
         <div 
-          className="tree-menu absolute right-0 top-8 z-50 rounded-md border py-1 min-w-[150px]"
+          className="tree-menu absolute right-0 top-8 z-50 rounded-md border py-1 min-w-[170px]"
           onMouseLeave={() => setShowMenu(false)}
         >
+          {node.is_directory && (
+            <>
+              <button
+                onClick={handleCreateFile}
+                className="tree-menu-item w-full px-3 py-2 text-left text-sm flex items-center gap-2"
+              >
+                <FilePlus className="w-3 h-3" />
+                New File
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                className="tree-menu-item w-full px-3 py-2 text-left text-sm flex items-center gap-2"
+              >
+                <FolderPlus className="w-3 h-3" />
+                New Folder
+              </button>
+            </>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation()
+              cancelRenameRef.current = false
               setIsRenaming(true)
               setShowMenu(false)
             }}

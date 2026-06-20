@@ -85,6 +85,26 @@ async function confirmUnsavedChanges(
   return shouldDiscard ? 'discard' : 'cancel'
 }
 
+function fileNameFromPath(path: string): string {
+  return path.split(/[\\/]/).pop() || path
+}
+
+function isPathInsideDirectory(path: string, directory: string): boolean {
+  return path === directory || path.startsWith(`${directory}/`) || path.startsWith(`${directory}\\`)
+}
+
+function replacePathPrefix(path: string, oldPrefix: string, newPrefix: string): string {
+  if (path === oldPrefix) {
+    return newPrefix
+  }
+
+  if (path.startsWith(`${oldPrefix}/`) || path.startsWith(`${oldPrefix}\\`)) {
+    return `${newPrefix}${path.slice(oldPrefix.length)}`
+  }
+
+  return path
+}
+
 interface AppStore {
   // State
   currentDirectory: string | null
@@ -121,9 +141,12 @@ interface AppStore {
   loadFile: (file: ExcalidrawFile) => Promise<void>
   loadFileFromTree: (node: FileTreeNode) => Promise<void>
   saveCurrentFile: (content?: string) => Promise<void>
-  createNewFile: (fileName?: string) => Promise<void>
+  createNewFile: (fileName?: string, directory?: string) => Promise<void>
+  createNewFolder: (folderName?: string, directory?: string) => Promise<void>
   renameFile: (oldPath: string, newName: string) => Promise<void>
+  renameFolder: (oldPath: string, newName: string) => Promise<void>
   deleteFile: (filePath: string) => Promise<boolean>
+  deleteFolder: (folderPath: string) => Promise<boolean>
   loadPreferences: () => Promise<void>
   savePreferences: () => Promise<void>
   toggleSidebar: () => void
@@ -459,7 +482,7 @@ export const useStore = create<AppStore>((set, get) => ({
   },
 
   // Create new file
-  createNewFile: async (fileName) => {
+  createNewFile: async (fileName, directory) => {
     const state = get()
     let { currentDirectory } = state
     
@@ -518,12 +541,16 @@ export const useStore = create<AppStore>((set, get) => ({
     
     // Generate default filename if not provided
     const finalFileName = fileName || `Untitled-${Date.now()}.excalidraw`
+    const requestedFileName = finalFileName.endsWith('.excalidraw')
+      ? finalFileName
+      : `${finalFileName}.excalidraw`
+    const targetDirectory = directory || currentDirectory
     
     try {
       // Create the new file
       const filePath = await invoke<string>('create_new_file', {
-        directory: currentDirectory,
-        fileName: finalFileName,
+        directory: targetDirectory,
+        fileName: requestedFileName,
       })
       
       // Reload the file tree to show the new file
@@ -531,7 +558,7 @@ export const useStore = create<AppStore>((set, get) => ({
       
       // Create an ExcalidrawFile object for the new file
       const file: ExcalidrawFile = {
-        name: finalFileName,
+        name: fileNameFromPath(filePath),
         path: filePath,
         modified: false,
       }
@@ -543,7 +570,48 @@ export const useStore = create<AppStore>((set, get) => ({
       alert(`Failed to create file: ${error}`)
     }
   },
-  
+
+  // Create new folder
+  createNewFolder: async (folderName, directory) => {
+    const state = get()
+    let { currentDirectory } = state
+
+    // Check if a directory is selected
+    if (!currentDirectory) {
+      // Prompt to select a directory if none is selected
+      try {
+        const dir = await invoke<string | null>('select_directory')
+        if (!dir) {
+          return
+        }
+        // Load the selected directory
+        await state.loadDirectory(dir)
+        currentDirectory = dir
+      } catch (error) {
+        console.error('[createNewFolder] Failed to select directory:', error)
+        alert(`Failed to select directory: ${error}`)
+        return
+      }
+    }
+
+    // Generate default folder name if not provided
+    const finalFolderName = folderName || `New Folder-${Date.now()}`
+    const targetDirectory = directory || currentDirectory
+
+    try {
+      await invoke<string>('create_new_folder', {
+        directory: targetDirectory,
+        folderName: finalFolderName,
+      })
+
+      // Reload the file tree to show the new folder
+      await state.loadFileTree(currentDirectory)
+    } catch (error) {
+      console.error('[createNewFolder] Failed to create folder:', error)
+      alert(`Failed to create folder: ${error}`)
+    }
+  },
+
   // Rename file
   renameFile: async (oldPath, newName) => {
     try {
@@ -580,6 +648,50 @@ export const useStore = create<AppStore>((set, get) => ({
       alert(`Failed to rename file: ${error}`)
     }
   },
+
+  // Rename folder
+  renameFolder: async (oldPath, newName) => {
+    try {
+      const newPath = await invoke<string>('rename_folder', {
+        oldPath,
+        newName,
+      })
+
+      const state = get()
+      const updatedTabs = state.openTabs.map((tab) => {
+        if (!isPathInsideDirectory(tab.path, oldPath)) {
+          return tab
+        }
+
+        const nextPath = replacePathPrefix(tab.path, oldPath, newPath)
+        return {
+          ...tab,
+          path: nextPath,
+          name: fileNameFromPath(nextPath),
+        }
+      })
+
+      const activeFile = state.activeFile && isPathInsideDirectory(state.activeFile.path, oldPath)
+        ? {
+            ...state.activeFile,
+            path: replacePathPrefix(state.activeFile.path, oldPath, newPath),
+            name: fileNameFromPath(replacePathPrefix(state.activeFile.path, oldPath, newPath)),
+          }
+        : state.activeFile
+
+      set({
+        activeFile,
+        openTabs: updatedTabs,
+      })
+
+      if (state.currentDirectory) {
+        await state.loadFileTree(state.currentDirectory)
+      }
+    } catch (error) {
+      console.error('Failed to rename folder:', error)
+      alert(`Failed to rename folder: ${error}`)
+    }
+  },
   
   // Delete file
   // NOTE: Confirmation should be handled by the caller
@@ -608,6 +720,37 @@ export const useStore = create<AppStore>((set, get) => ({
       return true
     } catch (error) {
       console.error('[deleteFile] Failed to delete file:', error)
+      throw error
+    }
+  },
+
+  // Delete folder
+  // NOTE: Confirmation should be handled by the caller
+  deleteFolder: async (folderPath) => {
+    try {
+      await invoke('delete_folder', { folderPath })
+      const state = get()
+      const openTabs = state.openTabs.filter((tab) => !isPathInsideDirectory(tab.path, folderPath))
+
+      if (state.activeFile && isPathInsideDirectory(state.activeFile.path, folderPath)) {
+        set({
+          openTabs,
+          activeFile: null,
+          fileContent: null,
+          activeFileLoadSource: null,
+          isDirty: false,
+        })
+      } else {
+        set({ openTabs })
+      }
+
+      if (state.currentDirectory) {
+        await state.loadFileTree(state.currentDirectory)
+      }
+
+      return true
+    } catch (error) {
+      console.error('[deleteFolder] Failed to delete folder:', error)
       throw error
     }
   },

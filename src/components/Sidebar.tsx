@@ -1,9 +1,10 @@
 import { ScrollArea } from '@radix-ui/react-scroll-area'
-import { FolderOpen, Plus } from 'lucide-react'
+import { FolderOpen, Plus, FolderPlus } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { TreeView } from './TreeView'
 import { FileTreeNode } from '../types'
 import { invoke } from '@tauri-apps/api/core'
+import { promptForName } from '../lib/namePrompt'
 
 function countFilesInTree(nodes: FileTreeNode[]): number {
   let count = 0
@@ -25,6 +26,7 @@ export function Sidebar() {
     activeFile,
     loadFileFromTree,
     createNewFile,
+    createNewFolder,
   } = useStore()
 
   const handleSelectDirectory = async () => {
@@ -35,19 +37,47 @@ export function Sidebar() {
   }
 
   const handleNewFile = async () => {
-    // Simple direct call without prompts for now
     if (!currentDirectory) {
-      // If no directory, select one first
       const dir = await invoke<string | null>('select_directory')
       if (dir) {
         await useStore.getState().loadDirectory(dir)
+      } else {
+        return
       }
-      return
     }
     
-    // Create with timestamp filename for now
-    const fileName = `Untitled-${Date.now()}.excalidraw`
+    const fileName = await promptForName({
+      title: 'File name',
+      defaultValue: 'Untitled.excalidraw',
+      confirmLabel: 'Create',
+    })
+    if (!fileName) {
+      return
+    }
+
     await createNewFile(fileName)
+  }
+
+  const handleNewFolder = async () => {
+    if (!currentDirectory) {
+      const dir = await invoke<string | null>('select_directory')
+      if (dir) {
+        await useStore.getState().loadDirectory(dir)
+      } else {
+        return
+      }
+    }
+
+    const folderName = await promptForName({
+      title: 'Folder name',
+      defaultValue: 'New Folder',
+      confirmLabel: 'Create',
+    })
+    if (!folderName) {
+      return
+    }
+
+    await createNewFolder(folderName)
   }
 
   return (
@@ -71,6 +101,15 @@ export function Sidebar() {
         >
           <Plus className="w-4 h-4" />
           <span className="text-sm">New File</span>
+        </button>
+
+        <button
+          onClick={handleNewFolder}
+          className="sidebar-action w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-md transition-colors"
+          title={!currentDirectory ? 'Select a directory first' : 'Create a new folder'}
+        >
+          <FolderPlus className="w-4 h-4" />
+          <span className="text-sm">New Folder</span>
         </button>
       </div>
 

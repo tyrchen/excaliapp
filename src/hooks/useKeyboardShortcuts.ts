@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useStore } from '../store/useStore'
+import { promptForName } from '../lib/namePrompt'
 
 export function useKeyboardShortcuts() {
   const {
@@ -10,6 +11,7 @@ export function useKeyboardShortcuts() {
     activeFile,
     loadFile,
     createNewFile,
+    createNewFolder,
     togglePresentationMode,
     closeTab,
     toggleDecorations,
@@ -68,8 +70,8 @@ export function useKeyboardShortcuts() {
         }
       }
 
-      // Cmd/Ctrl + N: New file
-      if (modKey && e.key === 'n') {
+      // Cmd/Ctrl + Shift + N: New folder
+      if (modKey && e.shiftKey && e.key.toLowerCase() === 'n') {
         e.preventDefault()
 
         const state = useStore.getState()
@@ -79,12 +81,48 @@ export function useKeyboardShortcuts() {
           const dir = await invoke<string | null>('select_directory')
           if (dir) {
             await state.loadDirectory(dir)
+          } else {
+            return
           }
+        }
+
+        const folderName = await promptForName({
+          title: 'Folder name',
+          defaultValue: 'New Folder',
+          confirmLabel: 'Create',
+        })
+        if (!folderName) {
           return
         }
 
-        // Create with timestamp filename
-        const fileName = `Untitled-${Date.now()}.excalidraw`
+        await createNewFolder(folderName)
+      }
+
+      // Cmd/Ctrl + N: New file
+      if (modKey && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+
+        const state = useStore.getState()
+
+        // If no directory is selected, select one first
+        if (!state.currentDirectory) {
+          const dir = await invoke<string | null>('select_directory')
+          if (dir) {
+            await state.loadDirectory(dir)
+          } else {
+            return
+          }
+        }
+
+        const fileName = await promptForName({
+          title: 'File name',
+          defaultValue: 'Untitled.excalidraw',
+          confirmLabel: 'Create',
+        })
+        if (!fileName) {
+          return
+        }
+
         await createNewFile(fileName)
       }
 
@@ -115,5 +153,5 @@ export function useKeyboardShortcuts() {
     // Use non-capturing phase to let Excalidraw handle events first
     window.addEventListener('keydown', handleKeyDown, false)
     return () => window.removeEventListener('keydown', handleKeyDown, false)
-  }, [toggleSidebar, saveCurrentFile, openTabs, activeFile, loadFile, createNewFile, togglePresentationMode, closeTab, toggleDecorations])
+  }, [toggleSidebar, saveCurrentFile, openTabs, activeFile, loadFile, createNewFile, createNewFolder, togglePresentationMode, closeTab, toggleDecorations])
 }
