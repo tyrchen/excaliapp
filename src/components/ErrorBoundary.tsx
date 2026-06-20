@@ -43,26 +43,26 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-lg">
+        <div className="app-shell min-h-screen flex items-center justify-center">
+          <div className="error-card max-w-md w-full p-6 rounded-lg">
             <div className="flex items-center mb-4">
-              <AlertCircle className="h-8 w-8 text-red-500 mr-3" />
-              <h1 className="text-xl font-semibold text-gray-900">
+              <AlertCircle className="tree-menu-danger h-8 w-8 mr-3" />
+              <h1 className="text-xl font-semibold">
                 Something went wrong
               </h1>
             </div>
             
             <div className="mb-6">
-              <p className="text-gray-600 mb-2">
+              <p className="sidebar-muted mb-2">
                 An unexpected error occurred. The error has been logged and we'll look into it.
               </p>
               
               {this.state.error && (
                 <details className="mt-4">
-                  <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
+                  <summary className="sidebar-muted cursor-pointer text-sm">
                     Technical details
                   </summary>
-                  <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
+                  <pre className="error-details mt-2 p-2 rounded text-xs overflow-auto">
                     {this.state.error.toString()}
                     {this.state.errorInfo && (
                       <>
@@ -78,14 +78,14 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="flex gap-3">
               <button
                 onClick={this.handleReset}
-                className="flex-1 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                className="error-secondary-button flex-1 px-4 py-2 rounded transition-colors"
               >
                 Try Again
               </button>
               
               <button
                 onClick={this.handleReload}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center"
+                className="error-primary-button flex-1 px-4 py-2 rounded transition-colors flex items-center justify-center"
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Reload App

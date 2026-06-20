@@ -6,10 +6,13 @@ export function useKeyboardShortcuts() {
   const {
     toggleSidebar,
     saveCurrentFile,
-    files,
+    openTabs,
     activeFile,
     loadFile,
     createNewFile,
+    togglePresentationMode,
+    closeTab,
+    toggleDecorations,
   } = useStore()
 
   useEffect(() => {
@@ -21,6 +24,27 @@ export function useKeyboardShortcuts() {
       // Let Excalidraw handle all clipboard operations natively
       if (modKey && (e.key === 'c' || e.key === 'v' || e.key === 'x' || e.key === 'a')) {
         return
+      }
+
+      // F5: Toggle presentation mode
+      if (e.key === 'F5') {
+        e.preventDefault()
+        togglePresentationMode()
+      }
+
+      // Escape: Exit presentation mode
+      if (e.key === 'Escape') {
+        const state = useStore.getState()
+        if (state.presentationMode) {
+          e.preventDefault()
+          togglePresentationMode()
+        }
+      }
+
+      // Ctrl/Cmd + Shift + D: Toggle decorations
+      if (modKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault()
+        toggleDecorations()
       }
 
       // Cmd/Ctrl + B: Toggle sidebar
@@ -47,9 +71,9 @@ export function useKeyboardShortcuts() {
       // Cmd/Ctrl + N: New file
       if (modKey && e.key === 'n') {
         e.preventDefault()
-        
+
         const state = useStore.getState()
-        
+
         // If no directory is selected, select one first
         if (!state.currentDirectory) {
           const dir = await invoke<string | null>('select_directory')
@@ -58,29 +82,32 @@ export function useKeyboardShortcuts() {
           }
           return
         }
-        
+
         // Create with timestamp filename
         const fileName = `Untitled-${Date.now()}.excalidraw`
         await createNewFile(fileName)
       }
 
-      // Cmd/Ctrl + Tab: Switch to next file
-      if (modKey && e.key === 'Tab') {
+      // Cmd/Ctrl + W: Close current tab
+      if (modKey && e.key === 'w') {
         e.preventDefault()
-        if (files.length > 1 && activeFile) {
-          const currentIndex = files.findIndex((f) => f.path === activeFile.path)
-          const nextIndex = (currentIndex + 1) % files.length
-          await loadFile(files[nextIndex])
+        if (activeFile) {
+          await closeTab(activeFile.path)
         }
       }
 
-      // Cmd/Ctrl + Shift + Tab: Switch to previous file
-      if (modKey && e.shiftKey && e.key === 'Tab') {
+      // Cmd/Ctrl + Tab / Cmd/Ctrl + Shift + Tab: Switch tabs
+      if (modKey && e.key === 'Tab') {
         e.preventDefault()
-        if (files.length > 1 && activeFile) {
-          const currentIndex = files.findIndex((f) => f.path === activeFile.path)
-          const prevIndex = currentIndex === 0 ? files.length - 1 : currentIndex - 1
-          await loadFile(files[prevIndex])
+        if (openTabs.length > 1 && activeFile) {
+          const currentIndex = openTabs.findIndex((f) => f.path === activeFile.path)
+          if (e.shiftKey) {
+            const prevIndex = currentIndex === 0 ? openTabs.length - 1 : currentIndex - 1
+            await loadFile(openTabs[prevIndex])
+          } else {
+            const nextIndex = (currentIndex + 1) % openTabs.length
+            await loadFile(openTabs[nextIndex])
+          }
         }
       }
     }
@@ -88,5 +115,5 @@ export function useKeyboardShortcuts() {
     // Use non-capturing phase to let Excalidraw handle events first
     window.addEventListener('keydown', handleKeyDown, false)
     return () => window.removeEventListener('keydown', handleKeyDown, false)
-  }, [toggleSidebar, saveCurrentFile, files, activeFile, loadFile, createNewFile])
+  }, [toggleSidebar, saveCurrentFile, openTabs, activeFile, loadFile, createNewFile, togglePresentationMode, closeTab, toggleDecorations])
 }

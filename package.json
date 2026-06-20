@@ -1,7 +1,7 @@
 {
   "name": "excaliapp",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -54,6 +54,7 @@
   },
   "overrides": {
     "@excalidraw/excalidraw": {
+      "@radix-ui/react-tabs": "1.1.15",
       "nanoid": "3.3.13"
     },
     "@excalidraw/mermaid-to-excalidraw": {
