@@ -119,6 +119,10 @@ fn collect_excalidraw_files_recursive(
         Ok(entries) => {
             for entry in entries.flatten() {
                 let path = entry.path();
+                if is_hidden_path(&path) {
+                    continue;
+                }
+
                 if path.is_file() {
                     if let Some(extension) = path.extension() {
                         if extension == "excalidraw" {
@@ -141,11 +145,21 @@ fn collect_excalidraw_files_recursive(
     Ok(())
 }
 
+fn is_hidden_path(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with('.'))
+}
+
 fn build_file_tree(dir: &Path, tree: &mut Vec<FileTreeNode>) -> Result<(), String> {
     match fs::read_dir(dir) {
         Ok(entries) => {
             for entry in entries.flatten() {
                 let path = entry.path();
+                if is_hidden_path(&path) {
+                    continue;
+                }
+
                 let name = path
                     .file_name()
                     .ok_or("Invalid file name")?
