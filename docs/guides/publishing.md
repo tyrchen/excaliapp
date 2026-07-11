@@ -9,9 +9,10 @@ Every pushed `v*` tag, such as `v0.3.0`, triggers `.github/workflows/release.yml
 The workflow builds:
 
 - macOS Apple Silicon DMG (`aarch64-apple-darwin`)
+- Windows x86_64 NSIS setup executable (`x86_64-pc-windows-msvc`)
 - Linux x86_64 AppImage
 
-It then creates a GitHub Release and uploads both assets.
+It then creates a GitHub Release and uploads all three assets.
 
 Publish a GitHub Release:
 
@@ -25,7 +26,8 @@ git push origin v0.3.0
 Notes:
 
 - macOS builds require macOS 12 or newer and target Apple Silicon only.
-- The DMG is not App Store signed or notarized. macOS Gatekeeper may show an unsigned-app warning until Developer ID signing and notarization are added.
+- The macOS release job requires the Developer ID and App Store Connect secrets used for signing and notarization.
+- The Windows installer is currently unsigned, so Microsoft Defender SmartScreen may display a warning.
 - Keep `package-lock.json` and `src-tauri/Cargo.lock` committed for reproducible release builds.
 - If the release workflow changes after a tag is pushed, use a new tag or intentionally move the existing tag after verifying the impact.
 

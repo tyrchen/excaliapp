@@ -24,6 +24,7 @@ A free, open-source desktop application for managing and editing local Excalidra
 Download the latest version from the [Releases page](https://github.com/tyrchen/excaliapp/releases/latest).
 
 - **macOS Apple Silicon**: download `ExcaliApp-<version>-macos-arm64.dmg`, open it, then drag ExcaliApp into Applications.
+- **Windows x86_64**: download `ExcaliApp-<version>-windows-x86_64-setup.exe` and run the installer.
 - **Linux x86_64**: download `ExcaliApp-<version>-linux-x86_64.AppImage`, make it executable, then run it:
 
 ```bash
@@ -32,6 +33,7 @@ chmod +x ExcaliApp-*-linux-x86_64.AppImage
 ```
 
 macOS builds currently target Apple Silicon only.
+The Windows installer is currently unsigned, so Microsoft Defender SmartScreen may display a warning.
 
 ### Build from Source
 
@@ -39,8 +41,10 @@ macOS builds currently target Apple Silicon only.
 
 - [Node.js](https://nodejs.org/) 24
 - [Rust](https://www.rust-lang.org/) (latest stable)
-- macOS on Apple Silicon
-- Xcode Command Line Tools
+- Platform-specific build tools:
+  - **Windows**: Visual Studio 2022 Build Tools with the **Desktop development with C++** workload and Microsoft Edge WebView2
+  - **macOS**: Xcode Command Line Tools
+  - **Linux**: Tauri's [Linux system dependencies](https://v2.tauri.app/start/prerequisites/#linux)
 
 #### Build Steps
 
@@ -90,20 +94,20 @@ The built application will be in `src-tauri/target/release/bundle/`
 
 ### Keyboard Shortcuts
 
-| Action                    | macOS            |
-| ------------------------- | ---------------- |
-| New File                  | Cmd+N            |
-| Open Directory            | Cmd+O            |
-| Save                      | Cmd+S            |
-| Save As                   | Cmd+Shift+S      |
-| Toggle Sidebar            | Cmd+B            |
-| Close Tab                 | Cmd+W            |
-| Next Tab                  | Cmd+Tab          |
-| Previous Tab              | Cmd+Shift+Tab    |
-| Presentation Mode         | F5               |
-| Exit Presentation         | Escape           |
-| Toggle Title Bar & Menu   | Cmd+Shift+D      |
-| Quit                      | Cmd+Q            |
+| Action                    | Windows/Linux       | macOS            |
+| ------------------------- | ------------------- | ---------------- |
+| New File                  | Ctrl+N              | Cmd+N            |
+| Open Directory            | Ctrl+O              | Cmd+O            |
+| Save                      | Ctrl+S              | Cmd+S            |
+| Save As                   | Ctrl+Shift+S        | Cmd+Shift+S      |
+| Toggle Sidebar            | Ctrl+B              | Cmd+B            |
+| Close Tab                 | Ctrl+W              | Cmd+W            |
+| Next Tab                  | Ctrl+Tab            | Cmd+Tab          |
+| Previous Tab              | Ctrl+Shift+Tab      | Cmd+Shift+Tab    |
+| Presentation Mode         | F5                  | F5               |
+| Exit Presentation         | Escape              | Escape           |
+| Toggle Title Bar & Menu   | Ctrl+Shift+D        | Cmd+Shift+D      |
+| Quit                      | Ctrl+Q              | Cmd+Q            |
 
 ### File Operations
 

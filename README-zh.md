@@ -19,16 +19,22 @@
 
 ### 下载预构建版本
 
-*即将推出 - 预构建的二进制文件将在 Releases 部分提供*
+请从 [Releases 页面](https://github.com/tyrchen/excaliapp/releases/latest) 下载最新版本。
+
+- **macOS Apple Silicon**：下载 `ExcaliApp-<version>-macos-arm64.dmg`
+- **Windows x86_64**：下载并运行 `ExcaliApp-<version>-windows-x86_64-setup.exe`
+- **Linux x86_64**：下载 `ExcaliApp-<version>-linux-x86_64.AppImage`
+
+Windows 安装程序目前尚未签名，因此 Microsoft Defender SmartScreen 可能会显示警告。
 
 ### 从源代码构建
 
 #### 前置要求
 
-- [Node.js](https://nodejs.org/)（v18 或更高版本）
+- [Node.js](https://nodejs.org/) 24
 - [Rust](https://www.rust-lang.org/)（最新稳定版）
 - 平台特定的开发工具：
-  - **Windows**：Visual Studio Build Tools
+  - **Windows**：Visual Studio 2022 Build Tools（安装“使用 C++ 的桌面开发”工作负载）和 Microsoft Edge WebView2
   - **macOS**：Xcode Command Line Tools
   - **Linux**：`build-essential`、`libwebkit2gtk-4.1-dev`、`libssl-dev`
 
@@ -36,11 +42,11 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/excaliapp.git
+git clone https://github.com/tyrchen/excaliapp.git
 cd excaliapp
 
 # 安装依赖
-npm install
+npm ci
 
 # 开发模式（支持热重载）
 npm run tauri dev
