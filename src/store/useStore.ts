@@ -127,6 +127,7 @@ interface AppStore {
   setFileContent: (content: string | null) => void
   updateTabScene: (filePath: string, scene: CachedExcalidrawScene) => void
   setPreferences: (prefs: Preferences) => void
+  setTheme: (theme: 'light' | 'dark' | 'system') => Promise<void>
   setSidebarVisible: (visible: boolean) => void
   setIsDirty: (dirty: boolean) => void
   markFileAsModified: (filePath: string, modified: boolean) => void
@@ -194,6 +195,21 @@ export const useStore = create<AppStore>((set, get) => ({
     ),
   })),
   setPreferences: (prefs) => set({ preferences: prefs }),
+  setTheme: async (theme) => {
+    const newPrefs = { ...get().preferences, theme }
+    set({ preferences: newPrefs })
+    const root = document.documentElement
+    if (theme === 'dark') {
+      root.classList.add('dark')
+    } else if (theme === 'light') {
+      root.classList.remove('dark')
+    } else {
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? root.classList.add('dark')
+        : root.classList.remove('dark')
+    }
+    await get().savePreferences()
+  },
   setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
   setIsDirty: (dirty) => set({ isDirty: dirty }),
   
