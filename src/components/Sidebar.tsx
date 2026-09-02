@@ -1,5 +1,5 @@
 import { ScrollArea } from '@radix-ui/react-scroll-area'
-import { FolderOpen, Plus, FolderPlus } from 'lucide-react'
+import { FolderOpen, Plus, FolderPlus, Sun, Moon, Monitor } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { TreeView } from './TreeView'
 import { FileTreeNode } from '../types'
@@ -27,6 +27,8 @@ export function Sidebar() {
     loadFileFromTree,
     createNewFile,
     createNewFolder,
+    preferences,
+    setTheme,
   } = useStore()
 
   const handleSelectDirectory = async () => {
@@ -131,10 +133,26 @@ export function Sidebar() {
       </ScrollArea>
 
       {/* Footer */}
-      <div className="sidebar-section p-3 border-t">
+      <div className="sidebar-section p-3 border-t flex items-center justify-between">
         <div className="sidebar-muted text-xs">
           {countFilesInTree(fileTree)} file{countFilesInTree(fileTree) !== 1 ? 's' : ''}
         </div>
+        <button
+          onClick={() => {
+            const next = preferences.theme === 'system' ? 'light' : preferences.theme === 'light' ? 'dark' : 'system'
+            setTheme(next)
+          }}
+          className="sidebar-action p-1.5 rounded-md transition-colors"
+          title={`Theme: ${preferences.theme} (click to cycle)`}
+        >
+          {preferences.theme === 'dark' ? (
+            <Moon className="w-3.5 h-3.5" />
+          ) : preferences.theme === 'light' ? (
+            <Sun className="w-3.5 h-3.5" />
+          ) : (
+            <Monitor className="w-3.5 h-3.5" />
+          )}
+        </button>
       </div>
     </div>
   )

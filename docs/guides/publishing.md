@@ -2,6 +2,60 @@
 
 This guide is for maintainers who publish ExcaliApp builds.
 
+## Windows Installer
+
+### Prerequisites
+
+Install Rust via [rustup](https://rustup.rs/), then add the MSVC toolchain:
+
+```bash
+rustup target add x86_64-pc-windows-msvc
+```
+
+Visual Studio Build Tools (C++ workload) are also required. Install them from
+the [Visual Studio downloads page](https://visualstudio.microsoft.com/downloads/) or via winget:
+
+```bash
+winget install Microsoft.VisualStudio.2022.BuildTools
+```
+
+### NSIS installer (.exe)
+
+Produces a user-friendly wizard-style installer.
+
+```bash
+npm run tauri build -- --bundles nsis
+```
+
+Output: `src-tauri/target/release/bundle/nsis/ExcaliApp_<version>_x64-setup.exe`
+
+### MSI installer (.msi)
+
+Produces a Windows Installer package suitable for enterprise deployment and Group Policy.
+
+```bash
+npm run tauri build -- --bundles msi
+```
+
+Output: `src-tauri/target/release/bundle/msi/ExcaliApp_<version>_x64_en-US.msi`
+
+### Both formats at once
+
+```bash
+npm run tauri build -- --bundles nsis,msi
+```
+
+### Notes
+
+- The `--bundles` flag overrides the `targets` array in `tauri.conf.json` for that run, so the macOS config is unaffected.
+- Windows builds must be run on a Windows machine; cross-compilation is not supported by Tauri.
+- The installer is unsigned by default. Windows SmartScreen will warn end users. To suppress the warning, sign the output with a code-signing certificate:
+  ```bash
+  signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f cert.pfx /p <password> ExcaliApp_*_x64-setup.exe
+  ```
+
+---
+
 ## GitHub Release
 
 Every pushed `v*` tag, such as `v0.3.0`, triggers `.github/workflows/release.yml`.
