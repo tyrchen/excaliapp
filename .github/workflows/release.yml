@@ -180,11 +180,66 @@ jobs:
           path: ${{ env.RELEASE_APPIMAGE }}
           if-no-files-found: error
 
+  build-windows:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/src-tauri/target
+      RELEASE_DIR: dist/github-release
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Build Windows installer
+        run: npm run tauri -- build --bundles nsis
+
+      - name: Stage release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$RELEASE_DIR"
+          installer_path="$(find "$CARGO_TARGET_DIR/release/bundle/nsis" -maxdepth 1 -name "*.exe" -print -quit)"
+          test -n "$installer_path"
+
+          release_installer="$RELEASE_DIR/ExcaliApp-${GITHUB_REF_NAME}-windows-x86_64-setup.exe"
+          cp "$installer_path" "$release_installer"
+          echo "RELEASE_INSTALLER=$release_installer" >> "$GITHUB_ENV"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: excaliapp-windows-x86_64-nsis
+          path: ${{ env.RELEASE_INSTALLER }}
+          if-no-files-found: error
+
   github-release:
     name: Create GitHub Release
     needs:
       - build-macos
       - build-linux
+      - build-windows
     runs-on: ubuntu-24.04
     permissions:
       contents: write
