@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Excalidraw } from '@excalidraw/excalidraw'
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import { ImagePlus, ClipboardPaste } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { setGlobalExcalidrawAPI } from '../hooks/useMenuHandler'
 import { TIMING } from '../constants'
 import type { OpenTab } from '../types'
+import { useImageImport } from '../hooks/useImageImport'
+import { IMAGE_ACCEPT } from '../lib/imageImport'
+import { sameScene, sceneFingerprint } from '../lib/sceneContent'
 
 type ExcalidrawElement = any
 type ExcalidrawAppState = any
@@ -18,9 +23,12 @@ interface EditorPaneProps {
 function EditorPane({ tab, isActive, presentationMode, theme }: EditorPaneProps) {
   const [isReady, setIsReady] = useState(false)
   const excalidrawAPIRef = useRef<any>(null)
+  const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { containerRef, importFiles, pasteImage } = useImageImport(api, isActive && isReady && !presentationMode)
   const initialLoadCompleteRef = useRef(false)
   const isUserChangeRef = useRef(false)
-  const lastSavedElementsRef = useRef(JSON.stringify(tab.cachedScene.elements || []))
+  const lastSceneRef = useRef(sceneFingerprint(tab.cachedScene.elements || [], tab.cachedScene.files))
   const hasCenteredInitialContentRef = useRef(false)
   const centerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const centerChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -32,6 +40,8 @@ function EditorPane({ tab, isActive, presentationMode, theme }: EditorPaneProps)
   }), [])
 
   const enableChangeTracking = useCallback(() => {
+    const api = excalidrawAPIRef.current
+    if (api) lastSceneRef.current = sceneFingerprint(api.getSceneElementsIncludingDeleted(), api.getFiles())
     initialLoadCompleteRef.current = true
     isUserChangeRef.current = true
     setIsReady(true)
@@ -99,51 +109,22 @@ function EditorPane({ tab, isActive, presentationMode, theme }: EditorPaneProps)
     }
   }, [clearCenterTimers])
 
-  useEffect(() => {
-    const unsubscribe = useStore.subscribe((state, prevState) => {
-      const wasSaved =
-        prevState.activeFile?.path === tab.path &&
-        state.activeFile?.path === tab.path &&
-        prevState.isDirty &&
-        !state.isDirty
-
-      if (wasSaved && state.fileContent) {
-        try {
-          const data = JSON.parse(state.fileContent)
-          lastSavedElementsRef.current = JSON.stringify(data.elements || [])
-        } catch {
-          // Ignore parse errors.
-        }
-      }
-    })
-
-    return unsubscribe
-  }, [tab.path])
-
   const handleChange = useCallback((
     elements: readonly ExcalidrawElement[],
     appState: ExcalidrawAppState,
     files: any
   ) => {
-    if (!isActive || !isUserChangeRef.current || !initialLoadCompleteRef.current) {
-      lastSavedElementsRef.current = JSON.stringify(elements || [])
+    if (!isUserChangeRef.current || !initialLoadCompleteRef.current) {
       return
     }
 
-    const currentElements = JSON.stringify(elements || [])
+    const currentScene = sceneFingerprint(elements || [], files)
 
-    if (currentElements === lastSavedElementsRef.current) {
+    if (sameScene(currentScene, lastSceneRef.current)) {
       return
     }
 
-    lastSavedElementsRef.current = currentElements
-
-    const store = useStore.getState()
-    if (!store.isDirty) {
-      store.setIsDirty(true)
-      store.markFileAsModified(tab.path, true)
-      store.markTreeNodeAsModified(tab.path, true)
-    }
+    lastSceneRef.current = currentScene
 
     const newContent = JSON.stringify(
       {
@@ -170,14 +151,12 @@ function EditorPane({ tab, isActive, presentationMode, theme }: EditorPaneProps)
       2
     )
 
-    const freshStore = useStore.getState()
-    if (freshStore.activeFile?.path === tab.path) {
-      freshStore.setFileContent(newContent)
-    }
-  }, [isActive, tab.path])
+    useStore.getState().updateTabContent(tab.path, newContent)
+  }, [tab.path])
 
   return (
     <div
+      ref={containerRef}
       className={`absolute inset-0 h-full ${isActive ? 'visible z-10' : 'invisible z-0 pointer-events-none'}`}
       aria-hidden={!isActive}
     >
@@ -185,6 +164,7 @@ function EditorPane({ tab, isActive, presentationMode, theme }: EditorPaneProps)
         initialData={initialData}
         excalidrawAPI={(api) => {
           excalidrawAPIRef.current = api
+          setApi(api)
           if (isActive) {
             setGlobalExcalidrawAPI(api)
             centerInitialContent(api)
@@ -193,6 +173,14 @@ function EditorPane({ tab, isActive, presentationMode, theme }: EditorPaneProps)
         onChange={handleChange}
         theme={theme}
         viewModeEnabled={presentationMode}
+        renderTopRightUI={() => presentationMode ? null : (
+          <div className="flex gap-1">
+            <button type="button" className="image-import-button" title="Import image" aria-label="Import image"
+              disabled={!isReady} onClick={() => fileInputRef.current?.click()}><ImagePlus size={18} /></button>
+            <button type="button" className="image-import-button" title="Paste image" aria-label="Paste image"
+              disabled={!isReady} onClick={() => { void pasteImage() }}><ClipboardPaste size={18} /></button>
+          </div>
+        )}
         UIOptions={{
           canvasActions: {
             loadScene: false,
@@ -204,6 +192,12 @@ function EditorPane({ tab, isActive, presentationMode, theme }: EditorPaneProps)
           },
         }}
       />
+      <input ref={fileInputRef} type="file" accept={IMAGE_ACCEPT} multiple hidden aria-label="Image files"
+        onChange={event => {
+          const files = Array.from(event.target.files || [])
+          event.target.value = ''
+          void importFiles(files)
+        }} />
       {!isReady && isActive && (
         <div className="editor-loading absolute inset-0 z-20 flex items-center justify-center">
           <div className="flex items-center gap-3">

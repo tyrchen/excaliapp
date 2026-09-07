@@ -126,6 +126,7 @@ interface AppStore {
   setActiveFile: (file: ExcalidrawFile | null) => void
   setFileContent: (content: string | null) => void
   updateTabScene: (filePath: string, scene: CachedExcalidrawScene) => void
+  updateTabContent: (filePath: string, content: string) => void
   setPreferences: (prefs: Preferences) => void
   setSidebarVisible: (visible: boolean) => void
   setIsDirty: (dirty: boolean) => void
@@ -141,6 +142,7 @@ interface AppStore {
   loadFile: (file: ExcalidrawFile) => Promise<void>
   loadFileFromTree: (node: FileTreeNode) => Promise<void>
   saveCurrentFile: (content?: string) => Promise<void>
+  saveTab: (filePath: string, content?: string) => Promise<void>
   createNewFile: (fileName?: string, directory?: string) => Promise<void>
   createNewFolder: (folderName?: string, directory?: string) => Promise<void>
   renameFile: (oldPath: string, newName: string) => Promise<void>
@@ -193,6 +195,20 @@ export const useStore = create<AppStore>((set, get) => ({
       tab.path === filePath ? { ...tab, cachedScene: scene } : tab
     ),
   })),
+  updateTabContent: (filePath, content) => {
+    if (!get().openTabs.some(tab => tab.path === filePath)) return
+    const scene = parseSceneFromContent(content)
+    set((state) => ({
+      openTabs: state.openTabs.map(tab => tab.path === filePath
+        ? { ...tab, cachedContent: content, cachedScene: scene, modified: true }
+        : tab),
+      ...(state.activeFile?.path === filePath
+        ? { fileContent: content, isDirty: true, activeFile: { ...state.activeFile, modified: true } }
+        : {}),
+    }))
+    get().markFileAsModified(filePath, true)
+    get().markTreeNodeAsModified(filePath, true)
+  },
   setPreferences: (prefs) => set({ preferences: prefs }),
   setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
   setIsDirty: (dirty) => set({ isDirty: dirty }),
@@ -309,6 +325,7 @@ export const useStore = create<AppStore>((set, get) => ({
       
       if (decision === 'save') {
         await state.saveCurrentFile()
+        if (get().isDirty) return
       } else if (decision === 'cancel') {
         return
       } else {
@@ -418,8 +435,16 @@ export const useStore = create<AppStore>((set, get) => ({
 
   // Save current file
   saveCurrentFile: async (content) => {
+    const filePath = get().activeFile?.path
+    if (filePath) await get().saveTab(filePath, content)
+  },
+
+  saveTab: async (filePath, content) => {
     const state = get()
-    const { activeFile, fileContent, isDirty } = state
+    const tab = state.openTabs.find(tab => tab.path === filePath)
+    const activeFile = tab || (state.activeFile?.path === filePath ? state.activeFile : null)
+    const fileContent = tab?.cachedContent || state.fileContent
+    const isDirty = tab?.modified || (state.activeFile?.path === filePath && state.isDirty)
     
     if (!activeFile) {
       return
@@ -442,12 +467,6 @@ export const useStore = create<AppStore>((set, get) => ({
         console.error('[saveCurrentFile] Invalid JSON structure')
         return
       }
-      
-      // Don't save if it's an empty Excalidraw file (no elements)
-      if (Array.isArray(parsed.elements) && parsed.elements.length === 0 && !content) {
-        // Only skip if this is an auto-save (no explicit content provided)
-        return
-      }
     } catch (jsonError) {
       console.error('[saveCurrentFile] Invalid JSON, not saving:', jsonError)
       return
@@ -459,22 +478,23 @@ export const useStore = create<AppStore>((set, get) => ({
         content: contentToSave,
       })
       
-      state.markFileAsModified(activeFile.path, false)
-      state.markTreeNodeAsModified(activeFile.path, false)
+      // Image decoding or another edit can finish while the disk write is pending.
+      const latestTab = get().openTabs.find(tab => tab.path === activeFile.path)
+      const changedDuringSave = !!latestTab && latestTab.cachedContent !== fileContent
+      const stillDirty = changedDuringSave && latestTab.cachedContent !== contentToSave
       set((currentState) => ({
-        isDirty: false,
-        activeFile: { ...activeFile, modified: false },
-        openTabs: currentState.openTabs.map((tab) =>
-          tab.path === activeFile.path
-            ? {
-                ...tab,
-                cachedContent: contentToSave,
-                contentHash,
-                modified: false,
-              }
-            : tab
-        ),
+        ...(currentState.activeFile?.path === activeFile.path ? {
+          isDirty: stillDirty,
+          activeFile: { ...currentState.activeFile, modified: stillDirty },
+          ...(!changedDuringSave ? { fileContent: contentToSave } : {}),
+        } : {}),
+        openTabs: currentState.openTabs.map(tab => tab.path === activeFile.path
+          ? { ...tab, contentHash, modified: stillDirty,
+              ...(!changedDuringSave ? { cachedContent: contentToSave, cachedScene: parseSceneFromContent(contentToSave) } : {}) }
+          : tab),
       }))
+      get().markFileAsModified(activeFile.path, stillDirty)
+      get().markTreeNodeAsModified(activeFile.path, stillDirty)
     } catch (error) {
       console.error('[saveCurrentFile] Failed to save file:', error)
       alert(`Failed to save file: ${error}`)
@@ -887,15 +907,16 @@ export const useStore = create<AppStore>((set, get) => ({
 
     const tab = state.openTabs[tabIndex]
 
-    // Check for unsaved changes if this is the active file
-    if (state.activeFile?.path === filePath && state.isDirty) {
+    // Resource completion can dirty a tab after it has become inactive.
+    if (tab.modified || (state.activeFile?.path === filePath && state.isDirty)) {
       const decision = await confirmUnsavedChanges(tab.name, 'closing')
 
       if (decision === 'save') {
-        await state.saveCurrentFile()
+        await state.saveTab(filePath)
+        if (get().openTabs.find(tab => tab.path === filePath)?.modified) return
       } else if (decision === 'cancel') {
         return
-      } else {
+      } else if (state.activeFile?.path === filePath) {
         try {
           const existingTab = get().openTabs.find((tab) => tab.path === state.activeFile?.path)
           const cleanTab = await readOpenTabFromDisk(
@@ -922,7 +943,7 @@ export const useStore = create<AppStore>((set, get) => ({
       }
     }
 
-    const newTabs = state.openTabs.filter(t => t.path !== filePath)
+    const newTabs = get().openTabs.filter(t => t.path !== filePath)
 
     if (state.activeFile?.path === filePath) {
       // Switch to adjacent tab

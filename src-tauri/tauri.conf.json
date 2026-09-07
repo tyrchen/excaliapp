@@ -25,7 +25,7 @@
         "decorations": true,
         "transparent": false,
         "skipTaskbar": false,
-        "dragDropEnabled": true,
+        "dragDropEnabled": false,
         "theme": null,
         "titleBarStyle": "Visible",
         "hiddenTitle": false,
