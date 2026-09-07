@@ -2,12 +2,12 @@ import '@testing-library/jest-dom'
 import { vi, beforeEach } from 'vitest'
 
 // Mock Tauri API for tests
-const mockInvoke = vi.fn()
-const mockListen = vi.fn()
+const { mockInvoke, mockListen } = vi.hoisted(() => ({ mockInvoke: vi.fn(), mockListen: vi.fn() }))
 
 // Mock @tauri-apps/api/core
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: mockInvoke,
+  isTauri: () => false,
 }))
 
 // Mock @tauri-apps/api/event

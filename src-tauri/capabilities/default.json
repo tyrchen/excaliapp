@@ -8,6 +8,7 @@
     "opener:default",
     "dialog:default",
     "store:default",
-    "clipboard-manager:default"
+    "clipboard-manager:allow-read-image",
+    "clipboard-manager:allow-read-text"
   ]
 }

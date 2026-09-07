@@ -18,7 +18,7 @@ function containsFilePath(nodes: ReturnType<typeof useStore.getState>['fileTree'
 }
 
 function App() {
-  const { loadPreferences, loadDirectory, currentDirectory, sidebarVisible, isDirty, saveCurrentFile, presentationMode } = useStore()
+  const { loadPreferences, loadDirectory, currentDirectory, sidebarVisible, presentationMode } = useStore()
 
 
   // Load preferences and setup on mount
@@ -55,7 +55,8 @@ function App() {
   // Listen for window close event
   useEffect(() => {
     const unlisten = listen('check-unsaved-before-close', async () => {
-      if (isDirty) {
+      const state = useStore.getState()
+      if (state.isDirty || state.openTabs.some(tab => tab.modified)) {
         const shouldSave = await ask('Do you want to save your changes before closing?', {
           title: 'Unsaved Changes',
           kind: 'warning',
@@ -64,7 +65,12 @@ function App() {
         })
         
         if (shouldSave) {
-          await saveCurrentFile()
+          for (const tab of useStore.getState().openTabs) {
+            if (tab.modified || tab.path === useStore.getState().activeFile?.path) {
+              await useStore.getState().saveTab(tab.path)
+            }
+          }
+          if (useStore.getState().isDirty || useStore.getState().openTabs.some(tab => tab.modified)) return
           await invoke('force_close_app')
         } else {
           const reallyClose = await ask('Close without saving your changes?', {
@@ -87,7 +93,7 @@ function App() {
     return () => {
       unlisten.then((fn) => fn())
     }
-  }, [isDirty, saveCurrentFile])
+  }, [])
 
   // Setup keyboard shortcuts
   useKeyboardShortcuts()
